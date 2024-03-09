@@ -151,6 +151,9 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 	/**
 	 * Set the names of the beans that this bean depends on being initialized.
 	 * The bean factory will guarantee that these beans get initialized first.
+	 * <p>Note that dependencies are normally expressed through bean properties or
+	 * constructor arguments. This property should just be necessary for other kinds
+	 * of dependencies like statics (*ugh*) or database preparation on startup.
 	 */
 	void setDependsOn(@Nullable String... dependsOn);
 
@@ -204,13 +207,20 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 
 	/**
 	 * Specify the factory bean to use, if any.
-	 * This the name of the bean to call the specified factory method on.
+	 * This is the name of the bean to call the specified factory method on.
+	 * <p>A factory bean name is only necessary for instance-based factory methods.
+	 * For static factory methods, the method will be derived from the bean class.
 	 * @see #setFactoryMethodName
+	 * @see #setBeanClassName
 	 */
 	void setFactoryBeanName(@Nullable String factoryBeanName);
 
 	/**
 	 * Return the factory bean name, if any.
+	 * <p>This will be {@code null} for static factory methods which will
+	 * be derived from the bean class instead.
+	 * @see #getFactoryMethodName()
+	 * @see #getBeanClassName()
 	 */
 	@Nullable
 	String getFactoryBeanName();
@@ -227,6 +237,8 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 
 	/**
 	 * Return a factory method, if any.
+	 * @see #getFactoryBeanName()
+	 * @see #getBeanClassName()
 	 */
 	@Nullable
 	String getFactoryMethodName();
@@ -241,6 +253,7 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 	/**
 	 * Return if there are constructor argument values defined for this bean.
 	 * @since 5.0.2
+	 * @see #getConstructorArgumentValues()
 	 */
 	default boolean hasConstructorArgumentValues() {
 		return !getConstructorArgumentValues().isEmpty();
@@ -256,6 +269,7 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 	/**
 	 * Return if there are property values defined for this bean.
 	 * @since 5.0.2
+	 * @see #getPropertyValues()
 	 */
 	default boolean hasPropertyValues() {
 		return !getPropertyValues().isEmpty();
@@ -350,7 +364,8 @@ public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
 	boolean isPrototype();
 
 	/**
-	 * Return whether this bean is "abstract", that is, not meant to be instantiated.
+	 * Return whether this bean is "abstract", that is, not meant to be instantiated
+	 * itself but rather just serving as parent for concrete child bean definitions.
 	 */
 	boolean isAbstract();
 

@@ -18,9 +18,13 @@ package org.springframework.context.annotation.configuration;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.BeanFactoryAnnotationUtils;
@@ -38,6 +42,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,97 +52,116 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Chris Beams
  * @author Juergen Hoeller
+ * @author Yanming Zhou
  */
 class BeanMethodQualificationTests {
 
 	@Test
 	void standard() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(StandardConfig.class, StandardPojo.class);
+		AnnotationConfigApplicationContext ctx = context(StandardConfig.class, StandardPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isFalse();
 		StandardPojo pojo = ctx.getBean(StandardPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
 		assertThat(pojo.testBean2.getName()).isEqualTo("boring");
+
 		ctx.close();
 	}
 
 	@Test
 	void scoped() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(ScopedConfig.class, StandardPojo.class);
+		AnnotationConfigApplicationContext ctx = context(ScopedConfig.class, StandardPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isFalse();
 		StandardPojo pojo = ctx.getBean(StandardPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
 		assertThat(pojo.testBean2.getName()).isEqualTo("boring");
+
 		ctx.close();
 	}
 
 	@Test
 	void scopedProxy() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(ScopedProxyConfig.class, StandardPojo.class);
+		AnnotationConfigApplicationContext ctx = context(ScopedProxyConfig.class, StandardPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isTrue();  // a shared scoped proxy
 		StandardPojo pojo = ctx.getBean(StandardPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
 		assertThat(pojo.testBean2.getName()).isEqualTo("boring");
+
 		ctx.close();
 	}
 
-	@Test
-	void primary() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(PrimaryConfig.class, StandardPojo.class, ConstructorPojo.class);
+	@SuppressWarnings("unchecked")
+	@ParameterizedTest
+	@ValueSource(classes = {PrimaryConfig.class, FallbackConfig.class})
+	void primaryVersusFallback(Class<?> configClass) {
+		AnnotationConfigApplicationContext ctx = context(configClass, StandardPojo.class, ConstructorPojo.class);
+
 		StandardPojo pojo = ctx.getBean(StandardPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
 		assertThat(pojo.testBean2.getName()).isEqualTo("boring");
+		assertThat(pojo.testBean2.getSpouse().getName()).isEqualTo("interesting");
+		assertThat((List<Object>) pojo.testBean2.getPets()).contains(
+				ctx.getBean("testBean1x"), ctx.getBean("testBean2x"));  // array injection
+		assertThat((List<Object>) pojo.testBean2.getSomeList()).contains(
+				ctx.getBean("testBean1x"), ctx.getBean("testBean2x"));  // list injection
+		assertThat((Map<String, TestBean>) pojo.testBean2.getSomeMap()).containsKeys(
+				"testBean1x", "testBean2x");  // map injection
+
 		ConstructorPojo pojo2 = ctx.getBean(ConstructorPojo.class);
-		assertThat(pojo2.testBean.getName()).isEqualTo("interesting");
-		assertThat(pojo2.testBean2.getName()).isEqualTo("boring");
+		assertThat(pojo2.testBean).isSameAs(pojo.testBean);
+		assertThat(pojo2.testBean2).isSameAs(pojo.testBean2);
+
 		ctx.close();
 	}
 
+	/**
+	 * One regular bean along with fallback beans is considered effective primary
+	 */
 	@Test
-	void fallback() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(FallbackConfig.class, StandardPojo.class, ConstructorPojo.class);
-		StandardPojo pojo = ctx.getBean(StandardPojo.class);
-		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
-		assertThat(pojo.testBean2.getName()).isEqualTo("boring");
-		ConstructorPojo pojo2 = ctx.getBean(ConstructorPojo.class);
-		assertThat(pojo2.testBean.getName()).isEqualTo("interesting");
-		assertThat(pojo2.testBean2.getName()).isEqualTo("boring");
+	void effectivePrimary() {
+		AnnotationConfigApplicationContext ctx = context(EffectivePrimaryConfig.class);
+
+		TestBean testBean = ctx.getBean(TestBean.class);
+		assertThat(testBean.getName()).isEqualTo("effective-primary");
+
 		ctx.close();
 	}
 
 	@Test
 	void customWithLazyResolution() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(CustomConfig.class, CustomPojo.class);
+		AnnotationConfigApplicationContext ctx = context(CustomConfig.class, CustomPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isFalse();
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean2")).isFalse();
 		assertThat(BeanFactoryAnnotationUtils.isQualifierMatch(value -> value.equals("boring"),
-		"testBean2", ctx.getDefaultListableBeanFactory())).isTrue();
+				"testBean2", ctx.getDefaultListableBeanFactory())).isTrue();
+
 		CustomPojo pojo = ctx.getBean(CustomPojo.class);
 		assertThat(pojo.plainBean).isNull();
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
+
 		TestBean testBean2 = BeanFactoryAnnotationUtils.qualifiedBeanOfType(
 				ctx.getDefaultListableBeanFactory(), TestBean.class, "boring");
 		assertThat(testBean2.getName()).isEqualTo("boring");
+
 		ctx.close();
 	}
 
 	@Test
 	void customWithEarlyResolution() {
-		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
-		ctx.register(CustomConfig.class, CustomPojo.class);
-		ctx.refresh();
+		AnnotationConfigApplicationContext ctx = context(CustomConfig.class, CustomPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isFalse();
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean2")).isFalse();
 		ctx.getBean("testBean2");
 		assertThat(BeanFactoryAnnotationUtils.isQualifierMatch(value -> value.equals("boring"),
-		"testBean2", ctx.getDefaultListableBeanFactory())).isTrue();
+				"testBean2", ctx.getDefaultListableBeanFactory())).isTrue();
+
 		CustomPojo pojo = ctx.getBean(CustomPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
+
 		ctx.close();
 	}
 
@@ -149,32 +173,39 @@ class BeanMethodQualificationTests {
 		customPojo.setLazyInit(true);
 		ctx.registerBeanDefinition("customPojo", customPojo);
 		ctx.refresh();
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean1")).isFalse();
 		assertThat(ctx.getBeanFactory().containsSingleton("testBean2")).isFalse();
 		CustomPojo pojo = ctx.getBean(CustomPojo.class);
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
+
 		ctx.close();
 	}
 
 	@Test
 	void customWithAttributeOverride() {
-		AnnotationConfigApplicationContext ctx =
-				new AnnotationConfigApplicationContext(CustomConfigWithAttributeOverride.class, CustomPojo.class);
+		AnnotationConfigApplicationContext ctx = context(CustomConfigWithAttributeOverride.class, CustomPojo.class);
+
 		assertThat(ctx.getBeanFactory().containsSingleton("testBeanX")).isFalse();
 		CustomPojo pojo = ctx.getBean(CustomPojo.class);
 		assertThat(pojo.plainBean).isNull();
 		assertThat(pojo.testBean.getName()).isEqualTo("interesting");
 		assertThat(pojo.nestedTestBean).isNull();
+
 		ctx.close();
 	}
 
 	@Test
 	void beanNamesForAnnotation() {
-		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(StandardConfig.class);
-		assertThat(ctx.getBeanNamesForAnnotation(Configuration.class)).isEqualTo(new String[] {"beanMethodQualificationTests.StandardConfig"});
-		assertThat(ctx.getBeanNamesForAnnotation(Scope.class)).isEqualTo(new String[] {});
-		assertThat(ctx.getBeanNamesForAnnotation(Lazy.class)).isEqualTo(new String[] {"testBean1"});
-		assertThat(ctx.getBeanNamesForAnnotation(Boring.class)).isEqualTo(new String[] {"beanMethodQualificationTests.StandardConfig", "testBean2"});
+		AnnotationConfigApplicationContext ctx = context(StandardConfig.class);
+
+		assertThat(ctx.getBeanNamesForAnnotation(Configuration.class))
+				.containsExactly("beanMethodQualificationTests.StandardConfig");
+		assertThat(ctx.getBeanNamesForAnnotation(Scope.class)).isEmpty();
+		assertThat(ctx.getBeanNamesForAnnotation(Lazy.class)).containsExactly("testBean1");
+		assertThat(ctx.getBeanNamesForAnnotation(Boring.class))
+				.containsExactly("beanMethodQualificationTests.StandardConfig", "testBean2");
+
 		ctx.close();
 	}
 
@@ -196,6 +227,7 @@ class BeanMethodQualificationTests {
 		}
 	}
 
+
 	@Configuration
 	@Boring
 	static class ScopedConfig {
@@ -212,6 +244,7 @@ class BeanMethodQualificationTests {
 			return tb;
 		}
 	}
+
 
 	@Configuration
 	@Boring
@@ -230,6 +263,7 @@ class BeanMethodQualificationTests {
 		}
 	}
 
+
 	@Configuration
 	static class PrimaryConfig {
 
@@ -244,9 +278,14 @@ class BeanMethodQualificationTests {
 		}
 
 		@Bean @Boring @Primary
-		public TestBean testBean2(TestBean testBean1) {
+		public TestBean testBean2(TestBean testBean1, TestBean[] testBeanArray,
+				List<TestBean> testBeanList, Map<String, TestBean> testBeanMap) {
+
 			TestBean tb = new TestBean("boring");
 			tb.setSpouse(testBean1);
+			tb.setPets(CollectionUtils.arrayToList(testBeanArray));
+			tb.setSomeList(testBeanList);
+			tb.setSomeMap(testBeanMap);
 			return tb;
 		}
 
@@ -255,6 +294,7 @@ class BeanMethodQualificationTests {
 			return new TestBean("");
 		}
 	}
+
 
 	@Configuration
 	static class FallbackConfig {
@@ -270,15 +310,39 @@ class BeanMethodQualificationTests {
 		}
 
 		@Bean @Boring
-		public TestBean testBean2(TestBean testBean1) {
+		public TestBean testBean2(TestBean testBean1, TestBean[] testBeanArray,
+				List<TestBean> testBeanList, Map<String, TestBean> testBeanMap) {
+
 			TestBean tb = new TestBean("boring");
 			tb.setSpouse(testBean1);
+			tb.setPets(CollectionUtils.arrayToList(testBeanArray));
+			tb.setSomeList(testBeanList);
+			tb.setSomeMap(testBeanMap);
 			return tb;
 		}
 
 		@Bean @Boring @Fallback
 		public TestBean testBean2x() {
 			return new TestBean("");
+		}
+	}
+
+	@Configuration
+	static class EffectivePrimaryConfig {
+
+		@Bean
+		public TestBean effectivePrimary() {
+			return new TestBean("effective-primary");
+		}
+
+		@Bean @Fallback
+		public TestBean fallback1() {
+			return new TestBean("fallback1");
+		}
+
+		@Bean @Fallback
+		public TestBean fallback2() {
+			return new TestBean("fallback2");
 		}
 	}
 
@@ -289,6 +353,7 @@ class BeanMethodQualificationTests {
 
 		@Autowired @Boring TestBean testBean2;
 	}
+
 
 	@Component @Lazy
 	static class ConstructorPojo {
@@ -303,10 +368,6 @@ class BeanMethodQualificationTests {
 		}
 	}
 
-	@Qualifier
-	@Retention(RetentionPolicy.RUNTIME)
-	public @interface Boring {
-	}
 
 	@Configuration
 	static class CustomConfig {
@@ -324,6 +385,7 @@ class BeanMethodQualificationTests {
 		}
 	}
 
+
 	@Configuration
 	static class CustomConfigWithAttributeOverride {
 
@@ -340,6 +402,7 @@ class BeanMethodQualificationTests {
 		}
 	}
 
+
 	@InterestingPojo
 	static class CustomPojo {
 
@@ -352,6 +415,12 @@ class BeanMethodQualificationTests {
 		public CustomPojo(Optional<TestBean> plainBean) {
 			this.plainBean = plainBean.orElse(null);
 		}
+	}
+
+
+	@Qualifier
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface Boring {
 	}
 
 	@Bean(defaultCandidate=false) @Lazy @Qualifier("interesting")
@@ -383,6 +452,10 @@ class BeanMethodQualificationTests {
 	@Component @Lazy
 	@Retention(RetentionPolicy.RUNTIME)
 	@interface InterestingPojo {
+	}
+
+	private static AnnotationConfigApplicationContext context(Class<?>... componentClasses) {
+		return new AnnotationConfigApplicationContext(componentClasses);
 	}
 
 }

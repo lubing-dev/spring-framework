@@ -55,6 +55,7 @@ import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils.MethodFilter;
 import org.springframework.validation.method.MethodValidator;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.accept.ContentNegotiationManager;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -165,6 +166,8 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 
 	@Nullable
 	private WebBindingInitializer webBindingInitializer;
+
+	private final List<ErrorResponse.Interceptor> errorResponseInterceptors = new ArrayList<>();
 
 	@Nullable
 	private MethodValidator methodValidator;
@@ -393,6 +396,27 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	@Nullable
 	public WebBindingInitializer getWebBindingInitializer() {
 		return this.webBindingInitializer;
+	}
+
+	/**
+	 * Configure a list of {@link ErrorResponse.Interceptor}'s to apply when
+	 * rendering an RFC 7807 {@link org.springframework.http.ProblemDetail}
+	 * error response.
+	 * @param interceptors the interceptors to use
+	 * @since 6.2
+	 */
+	public void setErrorResponseInterceptors(List<ErrorResponse.Interceptor> interceptors) {
+		this.errorResponseInterceptors.clear();
+		this.errorResponseInterceptors.addAll(interceptors);
+	}
+
+	/**
+	 * Return the {@link #setErrorResponseInterceptors(List) configured}
+	 * {@link ErrorResponse.Interceptor}'s.
+	 * @since 6.2
+	 */
+	public List<ErrorResponse.Interceptor> getErrorResponseInterceptors() {
+		return this.errorResponseInterceptors;
 	}
 
 	/**
@@ -746,7 +770,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 				this.reactiveAdapterRegistry, this.taskExecutor, this.contentNegotiationManager));
 		handlers.add(new StreamingResponseBodyReturnValueHandler());
 		handlers.add(new HttpEntityMethodProcessor(getMessageConverters(),
-				this.contentNegotiationManager, this.requestResponseBodyAdvice));
+				this.contentNegotiationManager, this.requestResponseBodyAdvice, this.errorResponseInterceptors));
 		handlers.add(new HttpHeadersReturnValueHandler());
 		handlers.add(new CallableMethodReturnValueHandler());
 		handlers.add(new DeferredResultMethodReturnValueHandler());
@@ -755,7 +779,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 		// Annotation-based return value types
 		handlers.add(new ServletModelAttributeMethodProcessor(false));
 		handlers.add(new RequestResponseBodyMethodProcessor(getMessageConverters(),
-				this.contentNegotiationManager, this.requestResponseBodyAdvice));
+				this.contentNegotiationManager, this.requestResponseBodyAdvice, this.errorResponseInterceptors));
 
 		// Multi-purpose return value types
 		handlers.add(new ViewNameMethodReturnValueHandler());
@@ -875,7 +899,21 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	protected ModelAndView invokeHandlerMethod(HttpServletRequest request,
 			HttpServletResponse response, HandlerMethod handlerMethod) throws Exception {
 
-		ServletWebRequest webRequest = new ServletWebRequest(request, response);
+		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
+		AsyncWebRequest asyncWebRequest = WebAsyncUtils.createAsyncWebRequest(request, response);
+		asyncWebRequest.setTimeout(this.asyncRequestTimeout);
+
+		asyncManager.setTaskExecutor(this.taskExecutor);
+		asyncManager.setAsyncWebRequest(asyncWebRequest);
+		asyncManager.registerCallableInterceptors(this.callableInterceptors);
+		asyncManager.registerDeferredResultInterceptors(this.deferredResultInterceptors);
+
+		// Obtain wrapped response to enforce lifecycle rule from Servlet spec, section 2.3.3.4
+		response = asyncWebRequest.getNativeResponse(HttpServletResponse.class);
+
+		ServletWebRequest webRequest = (asyncWebRequest instanceof ServletWebRequest ?
+				(ServletWebRequest) asyncWebRequest : new ServletWebRequest(request, response));
+
 		WebDataBinderFactory binderFactory = getDataBinderFactory(handlerMethod);
 		ModelFactory modelFactory = getModelFactory(handlerMethod, binderFactory);
 
@@ -894,15 +932,6 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 		mavContainer.addAllAttributes(RequestContextUtils.getInputFlashMap(request));
 		modelFactory.initModel(webRequest, mavContainer, invocableMethod);
 		mavContainer.setIgnoreDefaultModelOnRedirect(this.ignoreDefaultModelOnRedirect);
-
-		AsyncWebRequest asyncWebRequest = WebAsyncUtils.createAsyncWebRequest(request, response);
-		asyncWebRequest.setTimeout(this.asyncRequestTimeout);
-
-		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
-		asyncManager.setTaskExecutor(this.taskExecutor);
-		asyncManager.setAsyncWebRequest(asyncWebRequest);
-		asyncManager.registerCallableInterceptors(this.callableInterceptors);
-		asyncManager.registerDeferredResultInterceptors(this.deferredResultInterceptors);
 
 		if (asyncManager.hasConcurrentResult()) {
 			Object result = asyncManager.getConcurrentResult();
