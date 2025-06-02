@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.Part;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ResolvableType;
@@ -58,10 +59,9 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.GenericHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.SmartHttpMessageConverter;
 import org.springframework.http.server.RequestPath;
 import org.springframework.http.server.ServletServerHttpRequest;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
@@ -101,8 +101,7 @@ class DefaultServerRequest implements ServerRequest {
 
 	private final Map<String, Object> attributes;
 
-	@Nullable
-	private MultiValueMap<String, Part> parts;
+	private @Nullable MultiValueMap<String, Part> parts;
 
 
 	public DefaultServerRequest(HttpServletRequest servletRequest, List<HttpMessageConverter<?>> messageConverters) {
@@ -113,7 +112,7 @@ class DefaultServerRequest implements ServerRequest {
 		this.params = CollectionUtils.toMultiValueMap(new ServletParametersMap(servletRequest));
 		this.attributes = new ServletAttributesMap(servletRequest);
 
-		// DispatcherServlet parses the path but for other scenarios (e.g. tests) we might need to
+		// DispatcherServlet parses the path but for other scenarios (for example, tests) we might need to
 
 		this.requestPath = (ServletRequestPathUtils.hasParsedRequestPath(servletRequest) ?
 				ServletRequestPathUtils.getParsedRequestPath(servletRequest) :
@@ -123,12 +122,6 @@ class DefaultServerRequest implements ServerRequest {
 	@Override
 	public HttpMethod method() {
 		return HttpMethod.valueOf(servletRequest().getMethod());
-	}
-
-	@Override
-	@Deprecated
-	public String methodName() {
-		return servletRequest().getMethod();
 	}
 
 	@Override
@@ -211,7 +204,13 @@ class DefaultServerRequest implements ServerRequest {
 					return (T) genericMessageConverter.read(bodyType, bodyClass, this.serverHttpRequest);
 				}
 			}
-			if (messageConverter.canRead(bodyClass, contentType)) {
+			else if (messageConverter instanceof SmartHttpMessageConverter<?> smartMessageConverter) {
+				ResolvableType resolvableType = ResolvableType.forType(bodyType);
+				if (smartMessageConverter.canRead(resolvableType, contentType)) {
+					return (T) smartMessageConverter.read(resolvableType, this.serverHttpRequest, null);
+				}
+			}
+			else if (messageConverter.canRead(bodyClass, contentType)) {
 				HttpMessageConverter<T> theConverter =
 						(HttpMessageConverter<T>) messageConverter;
 				Class<? extends T> clazz = (Class<? extends T>) bodyClass;
@@ -379,7 +378,7 @@ class DefaultServerRequest implements ServerRequest {
 		}
 
 		@Override
-		public InetSocketAddress host() {
+		public @Nullable InetSocketAddress host() {
 			return this.httpHeaders.getHost();
 		}
 
@@ -522,7 +521,7 @@ class DefaultServerRequest implements ServerRequest {
 				}
 
 				@Override
-				public boolean addAll(@NonNull Collection<? extends Entry<String, Object>> c) {
+				public boolean addAll(Collection<? extends Entry<String, Object>> c) {
 					throw new UnsupportedOperationException();
 				}
 
@@ -537,7 +536,7 @@ class DefaultServerRequest implements ServerRequest {
 				}
 
 				@Override
-				public boolean retainAll(@NonNull Collection<?> c) {
+				public boolean retainAll(Collection<?> c) {
 					throw new UnsupportedOperationException();
 				}
 
@@ -601,7 +600,7 @@ class DefaultServerRequest implements ServerRequest {
 
 		@Override
 		public boolean containsHeader(String name) {
-			return this.headers.containsKey(name);
+			return this.headers.containsHeader(name);
 		}
 
 		@Override
@@ -630,8 +629,7 @@ class DefaultServerRequest implements ServerRequest {
 		}
 
 		@Override
-		@Nullable
-		public String getHeader(String name) {
+		public @Nullable String getHeader(String name) {
 			return this.headers.getFirst(name);
 		}
 
@@ -643,7 +641,7 @@ class DefaultServerRequest implements ServerRequest {
 
 		@Override
 		public Collection<String> getHeaderNames() {
-			return this.headers.keySet();
+			return this.headers.headerNames();
 		}
 
 

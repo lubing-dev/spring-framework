@@ -25,10 +25,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.PropertyValues;
 import org.springframework.beans.factory.support.RootBeanDefinition;
-import org.springframework.lang.Nullable;
+import org.springframework.lang.Contract;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils;
 
@@ -71,8 +73,7 @@ public class InjectionMetadata {
 
 	private final Collection<InjectedElement> injectedElements;
 
-	@Nullable
-	private volatile Set<InjectedElement> checkedElements;
+	private volatile @Nullable Set<InjectedElement> checkedElements;
 
 
 	/**
@@ -182,6 +183,7 @@ public class InjectionMetadata {
 	 * @return {@code true} indicating a refresh, {@code false} otherwise
 	 * @see #needsRefresh(Class)
 	 */
+	@Contract("null, _ -> true")
 	public static boolean needsRefresh(@Nullable InjectionMetadata metadata, Class<?> clazz) {
 		return (metadata == null || metadata.needsRefresh(clazz));
 	}
@@ -196,11 +198,9 @@ public class InjectionMetadata {
 
 		protected final boolean isField;
 
-		@Nullable
-		protected final PropertyDescriptor pd;
+		protected final @Nullable PropertyDescriptor pd;
 
-		@Nullable
-		protected volatile Boolean skip;
+		protected volatile @Nullable Boolean skip;
 
 		protected InjectedElement(Member member, @Nullable PropertyDescriptor pd) {
 			this.member = member;
@@ -333,8 +333,7 @@ public class InjectionMetadata {
 		/**
 		 * Either this or {@link #inject} needs to be overridden.
 		 */
-		@Nullable
-		protected Object getResourceToInject(Object target, @Nullable String requestingBeanName) {
+		protected @Nullable Object getResourceToInject(Object target, @Nullable String requestingBeanName) {
 			return null;
 		}
 

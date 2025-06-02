@@ -23,7 +23,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -37,11 +38,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 public class ChannelRegistration {
 
-	@Nullable
-	private TaskExecutorRegistration registration;
+	private @Nullable TaskExecutorRegistration registration;
 
-	@Nullable
-	private Executor executor;
+	private @Nullable Executor executor;
 
 	private final List<ChannelInterceptor> interceptors = new ArrayList<>();
 
@@ -71,7 +70,7 @@ public class ChannelRegistration {
 	 * taking precedence over a {@linkplain #taskExecutor() task executor
 	 * registration} if any.
 	 * @param executor the executor to use
-	 * @since 6.1.4
+	 * @since 6.2
 	 */
 	public ChannelRegistration executor(Executor executor) {
 		this.executor = executor;

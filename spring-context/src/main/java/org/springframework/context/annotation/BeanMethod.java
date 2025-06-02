@@ -18,10 +18,12 @@ package org.springframework.context.annotation;
 
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.parsing.Problem;
 import org.springframework.beans.factory.parsing.ProblemReporter;
 import org.springframework.core.type.MethodMetadata;
-import org.springframework.lang.Nullable;
 
 /**
  * Represents a {@link Configuration @Configuration} class method annotated with
@@ -43,7 +45,14 @@ final class BeanMethod extends ConfigurationMethod {
 
 
 	@Override
+	@SuppressWarnings("NullAway") // Reflection
 	public void validate(ProblemReporter problemReporter) {
+		if (getMetadata().getAnnotationAttributes(Autowired.class.getName()) != null) {
+			// declared as @Autowired: semantic mismatch since @Bean method arguments are autowired
+			// in any case whereas @Autowired methods are setter-like methods on the containing class
+			problemReporter.error(new AutowiredDeclaredMethodError());
+		}
+
 		if ("void".equals(getMetadata().getReturnTypeName())) {
 			// declared as void: potential misuse of @Bean, maybe meant as init method instead?
 			problemReporter.error(new VoidDeclaredMethodError());
@@ -54,7 +63,7 @@ final class BeanMethod extends ConfigurationMethod {
 			return;
 		}
 
-		Map<String, Object> attributes =
+		Map<String, @Nullable Object> attributes =
 				getConfigurationClass().getMetadata().getAnnotationAttributes(Configuration.class.getName());
 		if (attributes != null && (Boolean) attributes.get("proxyBeanMethods") && !getMetadata().isOverridable()) {
 			// instance @Bean methods within @Configuration classes must be overridable to accommodate CGLIB
@@ -85,6 +94,15 @@ final class BeanMethod extends ConfigurationMethod {
 		int index = metadataString.indexOf(metadata.getDeclaringClassName());
 		return (index >= 0 ? metadataString.substring(index + metadata.getDeclaringClassName().length()) :
 				metadataString);
+	}
+
+
+	private class AutowiredDeclaredMethodError extends Problem {
+
+		AutowiredDeclaredMethodError() {
+			super("@Bean method '%s' must not be declared as autowired; remove the method-level @Autowired annotation."
+					.formatted(getMetadata().getMethodName()), getResourceLocation());
+		}
 	}
 
 

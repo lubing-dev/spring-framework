@@ -23,10 +23,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.BeanResolver;
 import org.springframework.expression.ConstructorResolver;
 import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.IndexAccessor;
 import org.springframework.expression.MethodFilter;
 import org.springframework.expression.MethodResolver;
 import org.springframework.expression.OperatorOverloader;
@@ -35,7 +38,6 @@ import org.springframework.expression.TypeComparator;
 import org.springframework.expression.TypeConverter;
 import org.springframework.expression.TypeLocator;
 import org.springframework.expression.TypedValue;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -80,26 +82,21 @@ public class StandardEvaluationContext implements EvaluationContext {
 
 	private TypedValue rootObject;
 
-	@Nullable
-	private volatile List<PropertyAccessor> propertyAccessors;
+	private volatile @Nullable List<PropertyAccessor> propertyAccessors;
 
-	@Nullable
-	private volatile List<ConstructorResolver> constructorResolvers;
+	private volatile @Nullable List<IndexAccessor> indexAccessors;
 
-	@Nullable
-	private volatile List<MethodResolver> methodResolvers;
+	private volatile @Nullable List<ConstructorResolver> constructorResolvers;
 
-	@Nullable
-	private volatile ReflectiveMethodResolver reflectiveMethodResolver;
+	private volatile @Nullable List<MethodResolver> methodResolvers;
 
-	@Nullable
-	private BeanResolver beanResolver;
+	private volatile @Nullable ReflectiveMethodResolver reflectiveMethodResolver;
 
-	@Nullable
-	private TypeLocator typeLocator;
+	private @Nullable BeanResolver beanResolver;
 
-	@Nullable
-	private TypeConverter typeConverter;
+	private @Nullable TypeLocator typeLocator;
+
+	private @Nullable TypeConverter typeConverter;
 
 	private TypeComparator typeComparator = StandardTypeComparator.INSTANCE;
 
@@ -155,6 +152,56 @@ public class StandardEvaluationContext implements EvaluationContext {
 		return initPropertyAccessors().remove(accessor);
 	}
 
+	/**
+	 * Set the list of index accessors to use in this evaluation context.
+	 * <p>Replaces any previously configured index accessors.
+	 * @since 6.2
+	 * @see #getIndexAccessors()
+	 * @see #addIndexAccessor(IndexAccessor)
+	 * @see #removeIndexAccessor(IndexAccessor)
+	 */
+	public void setIndexAccessors(List<IndexAccessor> indexAccessors) {
+		this.indexAccessors = indexAccessors;
+	}
+
+	/**
+	 * Get the list of index accessors configured in this evaluation context.
+	 * @since 6.2
+	 * @see #setIndexAccessors(List)
+	 * @see #addIndexAccessor(IndexAccessor)
+	 * @see #removeIndexAccessor(IndexAccessor)
+	 */
+	@Override
+	public List<IndexAccessor> getIndexAccessors() {
+		return initIndexAccessors();
+	}
+
+	/**
+	 * Add the supplied index accessor to this evaluation context.
+	 * @param indexAccessor the index accessor to add
+	 * @since 6.2
+	 * @see #getIndexAccessors()
+	 * @see #setIndexAccessors(List)
+	 * @see #removeIndexAccessor(IndexAccessor)
+	 */
+	public void addIndexAccessor(IndexAccessor indexAccessor) {
+		initIndexAccessors().add(indexAccessor);
+	}
+
+	/**
+	 * Remove the supplied index accessor from this evaluation context.
+	 * @param indexAccessor the index accessor to remove
+	 * @return {@code true} if the index accessor was removed, {@code false} if
+	 * the index accessor was not configured in this evaluation context
+	 * @since 6.2
+	 * @see #getIndexAccessors()
+	 * @see #setIndexAccessors(List)
+	 * @see #addIndexAccessor(IndexAccessor)
+	 */
+	public boolean removeIndexAccessor(IndexAccessor indexAccessor) {
+		return initIndexAccessors().remove(indexAccessor);
+	}
+
 	public void setConstructorResolvers(List<ConstructorResolver> constructorResolvers) {
 		this.constructorResolvers = constructorResolvers;
 	}
@@ -194,8 +241,7 @@ public class StandardEvaluationContext implements EvaluationContext {
 	}
 
 	@Override
-	@Nullable
-	public BeanResolver getBeanResolver() {
+	public @Nullable BeanResolver getBeanResolver() {
 		return this.beanResolver;
 	}
 
@@ -346,8 +392,7 @@ public class StandardEvaluationContext implements EvaluationContext {
 	 * @return the value of the variable or function, or {@code null} if not found
 	 */
 	@Override
-	@Nullable
-	public Object lookupVariable(String name) {
+	public @Nullable Object lookupVariable(String name) {
 		return this.variables.get(name);
 	}
 
@@ -381,11 +426,12 @@ public class StandardEvaluationContext implements EvaluationContext {
 	 */
 	public void applyDelegatesTo(StandardEvaluationContext evaluationContext) {
 		// Triggers initialization for default delegates
-		evaluationContext.setConstructorResolvers(new ArrayList<>(this.getConstructorResolvers()));
-		evaluationContext.setMethodResolvers(new ArrayList<>(this.getMethodResolvers()));
-		evaluationContext.setPropertyAccessors(new ArrayList<>(this.getPropertyAccessors()));
-		evaluationContext.setTypeLocator(this.getTypeLocator());
-		evaluationContext.setTypeConverter(this.getTypeConverter());
+		evaluationContext.setConstructorResolvers(new ArrayList<>(getConstructorResolvers()));
+		evaluationContext.setMethodResolvers(new ArrayList<>(getMethodResolvers()));
+		evaluationContext.setPropertyAccessors(new ArrayList<>(getPropertyAccessors()));
+		evaluationContext.setIndexAccessors(new ArrayList<>(getIndexAccessors()));
+		evaluationContext.setTypeLocator(getTypeLocator());
+		evaluationContext.setTypeConverter(getTypeConverter());
 
 		evaluationContext.beanResolver = this.beanResolver;
 		evaluationContext.operatorOverloader = this.operatorOverloader;
@@ -400,6 +446,15 @@ public class StandardEvaluationContext implements EvaluationContext {
 			accessors = new ArrayList<>(5);
 			accessors.add(new ReflectivePropertyAccessor());
 			this.propertyAccessors = accessors;
+		}
+		return accessors;
+	}
+
+	private List<IndexAccessor> initIndexAccessors() {
+		List<IndexAccessor> accessors = this.indexAccessors;
+		if (accessors == null) {
+			accessors = new ArrayList<>(5);
+			this.indexAccessors = accessors;
 		}
 		return accessors;
 	}
@@ -425,8 +480,8 @@ public class StandardEvaluationContext implements EvaluationContext {
 		return resolvers;
 	}
 
-	private static <T> void addBeforeDefault(List<T> resolvers, T resolver) {
-		resolvers.add(resolvers.size() - 1, resolver);
+	private static <T> void addBeforeDefault(List<T> list, T element) {
+		list.add(list.size() - 1, element);
 	}
 
 }

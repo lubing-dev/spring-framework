@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,10 @@
  */
 
 package org.springframework.aop.aspectj.annotation;
+
+import java.lang.reflect.Field;
+
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.aot.generate.GenerationContext;
 import org.springframework.aot.hint.MemberCategory;
@@ -33,19 +37,30 @@ import org.springframework.util.ClassUtils;
  */
 class AspectJAdvisorBeanRegistrationAotProcessor implements BeanRegistrationAotProcessor {
 
+	private static final String AJC_MAGIC = "ajc$";
+
 	private static final boolean aspectjPresent = ClassUtils.isPresent("org.aspectj.lang.annotation.Pointcut",
 			AspectJAdvisorBeanRegistrationAotProcessor.class.getClassLoader());
 
 
 	@Override
-	public BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
+	public @Nullable BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
 		if (aspectjPresent) {
 			Class<?> beanClass = registeredBean.getBeanClass();
-			if (AbstractAspectJAdvisorFactory.compiledByAjc(beanClass)) {
+			if (compiledByAjc(beanClass)) {
 				return new AspectJAdvisorContribution(beanClass);
 			}
 		}
 		return null;
+	}
+
+	private static boolean compiledByAjc(Class<?> clazz) {
+		for (Field field : clazz.getDeclaredFields()) {
+			if (field.getName().startsWith(AJC_MAGIC)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 
@@ -59,7 +74,7 @@ class AspectJAdvisorBeanRegistrationAotProcessor implements BeanRegistrationAotP
 
 		@Override
 		public void applyTo(GenerationContext generationContext, BeanRegistrationCode beanRegistrationCode) {
-			generationContext.getRuntimeHints().reflection().registerType(this.beanClass, MemberCategory.DECLARED_FIELDS);
+			generationContext.getRuntimeHints().reflection().registerType(this.beanClass, MemberCategory.ACCESS_DECLARED_FIELDS);
 		}
 	}
 

@@ -23,7 +23,8 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.transaction.interceptor.AbstractFallbackTransactionAttributeSource;
 import org.springframework.transaction.interceptor.RollbackRuleAttribute;
 import org.springframework.transaction.interceptor.RuleBasedTransactionAttribute;
@@ -35,13 +36,14 @@ import org.springframework.util.CollectionUtils;
 /**
  * Implementation of the
  * {@link org.springframework.transaction.interceptor.TransactionAttributeSource}
- * interface for working with transaction metadata in JDK 1.5+ annotation format.
+ * interface for working with transaction metadata from annotations.
  *
- * <p>This class reads Spring's JDK 1.5+ {@link Transactional} annotation and
+ * <p>This class reads Spring's {@link Transactional @Transactional} annotation and
  * exposes corresponding transaction attributes to Spring's transaction infrastructure.
- * Also supports JTA 1.2's {@link jakarta.transaction.Transactional} and EJB3's
+ * Also supports JTA's {@link jakarta.transaction.Transactional} and EJB's
  * {@link jakarta.ejb.TransactionAttribute} annotation (if present).
- * This class may also serve as base class for a custom TransactionAttributeSource,
+ *
+ * <p>This class may also serve as base class for a custom TransactionAttributeSource,
  * or get customized through {@link TransactionAnnotationParser} strategies.
  *
  * @author Colin Sampaleanu
@@ -72,8 +74,7 @@ public class AnnotationTransactionAttributeSource extends AbstractFallbackTransa
 
 	private boolean publicMethodsOnly = true;
 
-	@Nullable
-	private Set<RollbackRuleAttribute> defaultRollbackRules;
+	private @Nullable Set<RollbackRuleAttribute> defaultRollbackRules;
 
 
 	/**
@@ -148,7 +149,7 @@ public class AnnotationTransactionAttributeSource extends AbstractFallbackTransa
 	 * but not on checked exceptions. A default rule may override this
 	 * while still respecting any custom rules in the transaction attribute.
 	 * @param rollbackRule a rollback rule overriding the default behavior,
-	 * e.g. {@link RollbackRuleAttribute#ROLLBACK_ON_ALL_EXCEPTIONS}
+	 * for example, {@link RollbackRuleAttribute#ROLLBACK_ON_ALL_EXCEPTIONS}
 	 * @since 6.2
 	 * @see RuleBasedTransactionAttribute#getRollbackRules()
 	 * @see EnableTransactionManagement#rollbackOn()
@@ -174,14 +175,12 @@ public class AnnotationTransactionAttributeSource extends AbstractFallbackTransa
 	}
 
 	@Override
-	@Nullable
-	protected TransactionAttribute findTransactionAttribute(Class<?> clazz) {
+	protected @Nullable TransactionAttribute findTransactionAttribute(Class<?> clazz) {
 		return determineTransactionAttribute(clazz);
 	}
 
 	@Override
-	@Nullable
-	protected TransactionAttribute findTransactionAttribute(Method method) {
+	protected @Nullable TransactionAttribute findTransactionAttribute(Method method) {
 		return determineTransactionAttribute(method);
 	}
 
@@ -195,8 +194,7 @@ public class AnnotationTransactionAttributeSource extends AbstractFallbackTransa
 	 * @param element the annotated method or class
 	 * @return the configured transaction attribute, or {@code null} if none was found
 	 */
-	@Nullable
-	protected TransactionAttribute determineTransactionAttribute(AnnotatedElement element) {
+	protected @Nullable TransactionAttribute determineTransactionAttribute(AnnotatedElement element) {
 		for (TransactionAnnotationParser parser : this.annotationParsers) {
 			TransactionAttribute attr = parser.parseTransactionAnnotation(element);
 			if (attr != null) {

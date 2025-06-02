@@ -32,6 +32,7 @@ import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.util.JsonFormat;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.http.HttpInputMessage;
 import org.springframework.http.HttpOutputMessage;
@@ -40,7 +41,6 @@ import org.springframework.http.converter.AbstractHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ConcurrentReferenceHashMap;
@@ -99,8 +99,7 @@ public class ProtobufHttpMessageConverter extends AbstractHttpMessageConverter<M
 
 	final ExtensionRegistry extensionRegistry;
 
-	@Nullable
-	private final ProtobufFormatSupport protobufFormatSupport;
+	private final @Nullable ProtobufFormatSupport protobufFormatSupport;
 
 
 	/**
@@ -203,7 +202,6 @@ public class ProtobufHttpMessageConverter extends AbstractHttpMessageConverter<M
 				(this.protobufFormatSupport != null && this.protobufFormatSupport.supportsWriteOnly(mediaType)));
 	}
 
-	@SuppressWarnings("deprecation")
 	@Override
 	protected void writeInternal(Message message, HttpOutputMessage outputMessage)
 			throws IOException, HttpMessageNotWritableException {
@@ -226,7 +224,7 @@ public class ProtobufHttpMessageConverter extends AbstractHttpMessageConverter<M
 		}
 		else if (TEXT_PLAIN.isCompatibleWith(contentType)) {
 			OutputStreamWriter outputStreamWriter = new OutputStreamWriter(outputMessage.getBody(), charset);
-			TextFormat.print(message, outputStreamWriter);  // deprecated on Protobuf 3.9
+			TextFormat.printer().print(message, outputStreamWriter);
 			outputStreamWriter.flush();
 			outputMessage.getBody().flush();
 		}
@@ -280,7 +278,7 @@ public class ProtobufHttpMessageConverter extends AbstractHttpMessageConverter<M
 
 		private final JsonFormat.Printer printer;
 
-		public ProtobufJavaUtilSupport(@Nullable JsonFormat.Parser parser, @Nullable JsonFormat.Printer printer) {
+		public ProtobufJavaUtilSupport(JsonFormat.@Nullable Parser parser, JsonFormat.@Nullable Printer printer) {
 			this.parser = (parser != null ? parser : JsonFormat.parser());
 			this.printer = (printer != null ? printer : JsonFormat.printer());
 		}

@@ -19,9 +19,10 @@ package org.springframework.http.converter.json;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpInputMessage;
-import org.springframework.lang.Nullable;
 
 /**
  * {@link HttpInputMessage} that can eventually stores a Jackson view that will be used
@@ -29,15 +30,16 @@ import org.springframework.lang.Nullable;
  *
  * @author Sebastien Deleuze
  * @since 4.2
+ * @deprecated since 7.0 in favor of using {@link org.springframework.http.converter.SmartHttpMessageConverter} hints
  */
+@Deprecated(since = "7.0", forRemoval = true)
 public class MappingJacksonInputMessage implements HttpInputMessage {
 
 	private final InputStream body;
 
 	private final HttpHeaders headers;
 
-	@Nullable
-	private Class<?> deserializationView;
+	private @Nullable Class<?> deserializationView;
 
 
 	public MappingJacksonInputMessage(InputStream body, HttpHeaders headers) {
@@ -65,8 +67,7 @@ public class MappingJacksonInputMessage implements HttpInputMessage {
 		this.deserializationView = deserializationView;
 	}
 
-	@Nullable
-	public Class<?> getDeserializationView() {
+	public @Nullable Class<?> getDeserializationView() {
 		return this.deserializationView;
 	}
 

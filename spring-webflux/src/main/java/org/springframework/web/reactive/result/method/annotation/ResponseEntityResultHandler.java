@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.KotlinDetector;
@@ -36,7 +37,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.HttpMessageWriter;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.reactive.HandlerResult;
@@ -108,7 +108,6 @@ public class ResponseEntityResultHandler extends AbstractMessageWriterResultHand
 				isSupportedType(result.getReturnType().getGeneric().toClass());
 	}
 
-	@Nullable
 	private static Class<?> resolveReturnValueType(HandlerResult result) {
 		Class<?> valueType = result.getReturnType().toClass();
 		Object value = result.getReturnValue();
@@ -129,7 +128,7 @@ public class ResponseEntityResultHandler extends AbstractMessageWriterResultHand
 
 
 	@Override
-	@SuppressWarnings("ConstantConditions")
+	@SuppressWarnings({"ConstantConditions", "NullAway"})
 	public Mono<Void> handleResult(ServerWebExchange exchange, HandlerResult result) {
 
 		Mono<?> returnValueMono;

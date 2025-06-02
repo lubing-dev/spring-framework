@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package org.springframework.beans.factory.support;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.BeanCurrentlyInCreationException;
@@ -26,7 +28,6 @@ import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.FactoryBeanNotInitializedException;
 import org.springframework.core.AttributeAccessor;
 import org.springframework.core.ResolvableType;
-import org.springframework.lang.Nullable;
 
 /**
  * Support base class for singleton registries which need to handle
@@ -50,8 +51,7 @@ public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanReg
 	 * @return the FactoryBean's object type,
 	 * or {@code null} if the type cannot be determined yet
 	 */
-	@Nullable
-	protected Class<?> getTypeForFactoryBean(FactoryBean<?> factoryBean) {
+	protected @Nullable Class<?> getTypeForFactoryBean(FactoryBean<?> factoryBean) {
 		try {
 			return factoryBean.getObjectType();
 		}
@@ -102,8 +102,7 @@ public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanReg
 	 * @return the object obtained from the FactoryBean,
 	 * or {@code null} if not available
 	 */
-	@Nullable
-	protected Object getCachedObjectForFactoryBean(String beanName) {
+	protected @Nullable Object getCachedObjectForFactoryBean(String beanName) {
 		return this.factoryBeanObjectCache.get(beanName);
 	}
 
@@ -118,39 +117,59 @@ public abstract class FactoryBeanRegistrySupport extends DefaultSingletonBeanReg
 	 */
 	protected Object getObjectFromFactoryBean(FactoryBean<?> factory, String beanName, boolean shouldPostProcess) {
 		if (factory.isSingleton() && containsSingleton(beanName)) {
-			Object object = this.factoryBeanObjectCache.get(beanName);
-			if (object == null) {
-				object = doGetObjectFromFactoryBean(factory, beanName);
-				// Only post-process and store if not put there already during getObject() call above
-				// (e.g. because of circular reference processing triggered by custom getBean calls)
-				Object alreadyThere = this.factoryBeanObjectCache.get(beanName);
-				if (alreadyThere != null) {
-					object = alreadyThere;
+			Boolean lockFlag = isCurrentThreadAllowedToHoldSingletonLock();
+			boolean locked;
+			if (lockFlag == null) {
+				this.singletonLock.lock();
+				locked = true;
+			}
+			else {
+				locked = (lockFlag && this.singletonLock.tryLock());
+			}
+			try {
+				Object object = this.factoryBeanObjectCache.get(beanName);
+				if (object == null) {
+					object = doGetObjectFromFactoryBean(factory, beanName);
+					// Only post-process and store if not put there already during getObject() call above
+					// (for example, because of circular reference processing triggered by custom getBean calls)
+					Object alreadyThere = this.factoryBeanObjectCache.get(beanName);
+					if (alreadyThere != null) {
+						object = alreadyThere;
+					}
+					else {
+						if (shouldPostProcess) {
+							if (locked) {
+								if (isSingletonCurrentlyInCreation(beanName)) {
+									// Temporarily return non-post-processed object, not storing it yet
+									return object;
+								}
+								beforeSingletonCreation(beanName);
+							}
+							try {
+								object = postProcessObjectFromFactoryBean(object, beanName);
+							}
+							catch (Throwable ex) {
+								throw new BeanCreationException(beanName,
+										"Post-processing of FactoryBean's singleton object failed", ex);
+							}
+							finally {
+								if (locked) {
+									afterSingletonCreation(beanName);
+								}
+							}
+						}
+						if (containsSingleton(beanName)) {
+							this.factoryBeanObjectCache.put(beanName, object);
+						}
+					}
 				}
-				else {
-					if (shouldPostProcess) {
-						if (isSingletonCurrentlyInCreation(beanName)) {
-							// Temporarily return non-post-processed object, not storing it yet
-							return object;
-						}
-						beforeSingletonCreation(beanName);
-						try {
-							object = postProcessObjectFromFactoryBean(object, beanName);
-						}
-						catch (Throwable ex) {
-							throw new BeanCreationException(beanName,
-									"Post-processing of FactoryBean's singleton object failed", ex);
-						}
-						finally {
-							afterSingletonCreation(beanName);
-						}
-					}
-					if (containsSingleton(beanName)) {
-						this.factoryBeanObjectCache.put(beanName, object);
-					}
+				return object;
+			}
+			finally {
+				if (locked) {
+					this.singletonLock.unlock();
 				}
 			}
-			return object;
 		}
 		else {
 			Object object = doGetObjectFromFactoryBean(factory, beanName);

@@ -28,6 +28,8 @@ import reactor.core.publisher.Mono
 import reactor.test.StepVerifier
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.coroutineContext
+import kotlin.reflect.full.primaryConstructor
+import kotlin.reflect.jvm.isAccessible
 
 /**
  * Kotlin tests for [CoroutinesUtils].
@@ -89,6 +91,17 @@ class CoroutinesUtilsTests {
 		runBlocking {
 			Assertions.assertThat(mono.awaitSingleOrNull()).isNull()
 		}
+	}
+
+	@Test
+	fun invokePrivateSuspendingFunction() {
+		val method = CoroutinesUtilsTests::class.java.getDeclaredMethod("privateSuspendingFunction", String::class.java, Continuation::class.java)
+		val publisher = CoroutinesUtils.invokeSuspendingFunction(method, this, "foo")
+		Assertions.assertThat(publisher).isInstanceOf(Mono::class.java)
+		StepVerifier.create(publisher)
+			.expectNext("foo")
+			.expectComplete()
+			.verify()
 	}
 
 	@Test
@@ -179,10 +192,37 @@ class CoroutinesUtilsTests {
 
 	@Test
 	fun invokeSuspendingFunctionWithValueClassParameter() {
-		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithValueClass") }
+		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithValueClassParameter") }
 		val mono = CoroutinesUtils.invokeSuspendingFunction(method, this, "foo", null) as Mono
 		runBlocking {
 			Assertions.assertThat(mono.awaitSingle()).isEqualTo("foo")
+		}
+	}
+
+	@Test
+	fun invokeSuspendingFunctionWithNestedValueClassParameter() {
+		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithNestedValueClassParameter") }
+		val mono = CoroutinesUtils.invokeSuspendingFunction(method, this, "foo", null) as Mono
+		runBlocking {
+			Assertions.assertThat(mono.awaitSingle()).isEqualTo("foo")
+		}
+	}
+
+	@Test
+	fun invokeSuspendingFunctionWithValueClassReturnValue() {
+		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithValueClassReturnValue") }
+		val mono = CoroutinesUtils.invokeSuspendingFunction(method, this, null) as Mono
+		runBlocking {
+			Assertions.assertThat(mono.awaitSingle()).isEqualTo(ValueClass("foo"))
+		}
+	}
+
+	@Test
+	fun invokeSuspendingFunctionWithResultOfUnitReturnValue() {
+		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithResultOfUnitReturnValue") }
+		val mono = CoroutinesUtils.invokeSuspendingFunction(method, this, null) as Mono
+		runBlocking {
+			Assertions.assertThat(mono.awaitSingle()).isEqualTo(Result.success(Unit))
 		}
 	}
 
@@ -207,6 +247,15 @@ class CoroutinesUtilsTests {
 	}
 
 	@Test
+	fun invokeSuspendingFunctionWithValueClassWithPrivateConstructorParameter() {
+		val method = CoroutinesUtilsTests::class.java.declaredMethods.first { it.name.startsWith("suspendingFunctionWithValueClassWithPrivateConstructor") }
+		val mono = CoroutinesUtils.invokeSuspendingFunction(method, this, "foo", null) as Mono
+		runBlocking {
+			Assertions.assertThat(mono.awaitSingleOrNull()).isEqualTo("foo")
+		}
+	}
+
+	@Test
 	fun invokeSuspendingFunctionWithExtension() {
 		val method = CoroutinesUtilsTests::class.java.getDeclaredMethod("suspendingFunctionWithExtension",
 			CustomException::class.java, Continuation::class.java)
@@ -226,7 +275,22 @@ class CoroutinesUtilsTests {
 		}
 	}
 
+	@Test
+	fun invokeSuspendingFunctionWithGenericParameter() {
+		val method = GenericController::class.java.declaredMethods.first { it.name.startsWith("handle") }
+		val horse = Animal("horse")
+		val mono = CoroutinesUtils.invokeSuspendingFunction(method, AnimalController(), horse, null) as Mono
+		runBlocking {
+			Assertions.assertThat(mono.awaitSingle()).isEqualTo(horse.name)
+		}
+	}
+
 	suspend fun suspendingFunction(value: String): String {
+		delay(1)
+		return value
+	}
+
+	private suspend fun privateSuspendingFunction(value: String): String {
 		delay(1)
 		return value
 	}
@@ -268,9 +332,24 @@ class CoroutinesUtilsTests {
 		return null
 	}
 
-	suspend fun suspendingFunctionWithValueClass(value: ValueClass): String {
+	suspend fun suspendingFunctionWithValueClassParameter(value: ValueClass): String {
 		delay(1)
 		return value.value
+	}
+
+	suspend fun suspendingFunctionWithNestedValueClassParameter(value: NestedValueClass): String {
+		delay(1)
+		return value.value.value
+	}
+
+	suspend fun suspendingFunctionWithValueClassReturnValue(): ValueClass {
+		delay(1)
+		return ValueClass("foo")
+	}
+
+	suspend fun suspendingFunctionWithResultOfUnitReturnValue(): Result<Unit> {
+		delay(1)
+		return Result.success(Unit)
 	}
 
 	suspend fun suspendingFunctionWithValueClassWithInit(value: ValueClassWithInit): String {
@@ -283,6 +362,11 @@ class CoroutinesUtilsTests {
 		return value?.value
 	}
 
+	suspend fun suspendingFunctionWithValueClassWithPrivateConstructor(value: ValueClassWithPrivateConstructor): String? {
+		delay(1)
+		return value.value
+	}
+
 	suspend fun CustomException.suspendingFunctionWithExtension(): String {
 		delay(1)
 		return "${this.message}"
@@ -293,8 +377,27 @@ class CoroutinesUtilsTests {
 		return "${this.message}-$limit"
 	}
 
+	interface Named {
+		val name: String
+	}
+
+	data class Animal(override val name: String) : Named
+
+	abstract class GenericController<T : Named> {
+
+		suspend fun handle(named: T): String {
+			delay(1)
+			return named.name;
+		}
+	}
+
+	private class AnimalController : GenericController<Animal>()
+
 	@JvmInline
 	value class ValueClass(val value: String)
+
+	@JvmInline
+	value class NestedValueClass(val value: ValueClass)
 
 	@JvmInline
 	value class ValueClassWithInit(val value: String) {
@@ -303,6 +406,13 @@ class CoroutinesUtilsTests {
 				 throw IllegalArgumentException()
 			 }
 		 }
+	}
+
+	@JvmInline
+	value class ValueClassWithPrivateConstructor private constructor(val value: String) {
+		companion object {
+			fun from(value: String) = ValueClassWithPrivateConstructor(value)
+		}
 	}
 
 	class CustomException(message: String) : Throwable(message)

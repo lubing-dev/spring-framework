@@ -16,11 +16,8 @@
 
 package org.springframework.web.reactive.function.client;
 
-import java.util.Optional;
-
 import io.micrometer.observation.transport.RequestReplySenderContext;
-
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Context that holds information for metadata collection during the
@@ -35,31 +32,12 @@ import org.springframework.lang.Nullable;
  */
 public class ClientRequestObservationContext extends RequestReplySenderContext<ClientRequest.Builder, ClientResponse> {
 
-	/**
-	 * Name of the request attribute holding the {@link ClientRequestObservationContext context}
-	 * for the current observation.
-	 * @since 6.0.15
-	 */
-	public static final String CURRENT_OBSERVATION_CONTEXT_ATTRIBUTE = ClientRequestObservationContext.class.getName();
-
-
-	@Nullable
-	private String uriTemplate;
+	private @Nullable String uriTemplate;
 
 	private boolean aborted;
 
-	@Nullable
-	private ClientRequest request;
+	private @Nullable ClientRequest request;
 
-
-	/**
-	 * Create a new Observation context for HTTP client observations.
-	 * @deprecated as of 6.1.2, in favor of {@link #ClientRequestObservationContext(ClientRequest.Builder)}
-	 */
-	@Deprecated(since = "6.1.2", forRemoval = true)
-	public ClientRequestObservationContext() {
-		super(ClientRequestObservationContext::setRequestHeader);
-	}
 
 	/**
 	 * Create a new Observation context for HTTP client observations.
@@ -73,7 +51,7 @@ public class ClientRequestObservationContext extends RequestReplySenderContext<C
 	}
 
 
-	private static void setRequestHeader(@Nullable ClientRequest.Builder request, String name, String value) {
+	private static void setRequestHeader(ClientRequest.@Nullable Builder request, String name, String value) {
 		if (request != null) {
 			request.headers(headers -> headers.set(name, value));
 		}
@@ -90,8 +68,7 @@ public class ClientRequestObservationContext extends RequestReplySenderContext<C
 	/**
 	 * Return the URI template used for the current client exchange, {@code null} if none was used.
 	 */
-	@Nullable
-	public String getUriTemplate() {
+	public @Nullable String getUriTemplate() {
 		return this.uriTemplate;
 	}
 
@@ -121,21 +98,8 @@ public class ClientRequestObservationContext extends RequestReplySenderContext<C
 	/**
 	 * Return the immutable client request.
 	 */
-	@Nullable
-	public ClientRequest getRequest() {
+	public @Nullable ClientRequest getRequest() {
 		return this.request;
-	}
-
-
-	/**
-	 * Get the current {@link ClientRequestObservationContext observation context}
-	 * from the given request, if available.
-	 * @param request the current client request
-	 * @return the current observation context
-	 * @since 6.0.15
-	 */
-	public static Optional<ClientRequestObservationContext> findCurrent(ClientRequest request) {
-		return Optional.ofNullable((ClientRequestObservationContext) request.attributes().get(CURRENT_OBSERVATION_CONTEXT_ATTRIBUTE));
 	}
 
 }

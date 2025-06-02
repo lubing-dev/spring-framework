@@ -20,10 +20,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import com.gargoylesoftware.htmlunit.WebRequest;
-import com.gargoylesoftware.htmlunit.WebResponse;
-import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import jakarta.servlet.http.Cookie;
+import org.htmlunit.WebRequest;
+import org.htmlunit.WebResponse;
+import org.htmlunit.util.NameValuePair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -126,7 +126,7 @@ public class MockWebResponseBuilderTests {
 		WebResponse webResponse = this.responseBuilder.build();
 
 		List<NameValuePair> responseHeaders = webResponse.getResponseHeaders();
-		assertThat(responseHeaders).hasSize(1);
+		assertThat(responseHeaders.size()).as("size").isOne();
 		NameValuePair header = responseHeaders.get(0);
 		assertThat(header.getName()).isEqualTo("Set-Cookie");
 		assertThat(header.getValue()).isEqualTo("cookieA=valueA");

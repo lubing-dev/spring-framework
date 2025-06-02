@@ -36,7 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.assertj.core.api.IntegerAssert;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.BeanWrapper;
@@ -63,7 +63,6 @@ import org.springframework.format.Formatter;
 import org.springframework.format.number.NumberStyleFormatter;
 import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.format.support.FormattingConversionService;
-import org.springframework.lang.Nullable;
 import org.springframework.tests.sample.beans.BeanWithObjectProperty;
 import org.springframework.util.StringUtils;
 
@@ -2042,7 +2041,7 @@ class DataBinderTests {
 
 		binder.bind(pvs);
 		assertThat(tb.getIntegerList()).hasSize(257);
-		assertThat(tb.getIntegerList(), IntegerAssert.class).element(256).isEqualTo(1);
+		assertThat(tb.getIntegerList()).element(256).isEqualTo(1);
 		assertThat(binder.getBindingResult().getFieldValue("integerList[256]")).isEqualTo(1);
 	}
 

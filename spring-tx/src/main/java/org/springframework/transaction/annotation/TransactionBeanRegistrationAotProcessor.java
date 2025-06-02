@@ -20,6 +20,8 @@ import java.lang.reflect.AnnotatedElement;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.aot.generate.GenerationContext;
 import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
@@ -46,7 +48,7 @@ class TransactionBeanRegistrationAotProcessor implements BeanRegistrationAotProc
 
 
 	@Override
-	public BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
+	public @Nullable BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
 		Class<?> beanClass = registeredBean.getBeanClass();
 		if (isTransactional(beanClass)) {
 			return new AotContribution(beanClass);
@@ -81,9 +83,6 @@ class TransactionBeanRegistrationAotProcessor implements BeanRegistrationAotProc
 		public void applyTo(GenerationContext generationContext, BeanRegistrationCode beanRegistrationCode) {
 			RuntimeHints runtimeHints = generationContext.getRuntimeHints();
 			Class<?>[] proxyInterfaces = ClassUtils.getAllInterfacesForClass(this.beanClass);
-			if (proxyInterfaces.length == 0) {
-				return;
-			}
 			for (Class<?> proxyInterface : proxyInterfaces) {
 				runtimeHints.reflection().registerType(proxyInterface, MemberCategory.INVOKE_DECLARED_METHODS);
 			}

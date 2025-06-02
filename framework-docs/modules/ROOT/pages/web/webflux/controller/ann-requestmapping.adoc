@@ -40,7 +40,7 @@ The following example uses type and method level mappings:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@RestController
 	@RequestMapping("/persons")
@@ -61,7 +61,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@RestController
 	@RequestMapping("/persons")
@@ -129,7 +129,7 @@ Captured URI variables can be accessed with `@PathVariable`, as the following ex
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/owners/{ownerId}/pets/{petId}")
 	public Pet findPet(@PathVariable Long ownerId, @PathVariable Long petId) {
@@ -139,7 +139,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/owners/{ownerId}/pets/{petId}")
 	fun findPet(@PathVariable ownerId: Long, @PathVariable petId: Long): Pet {
@@ -156,7 +156,7 @@ You can declare URI variables at the class and method levels, as the following e
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@Controller
 	@RequestMapping("/owners/{ownerId}") // <1>
@@ -173,7 +173,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@Controller
 	@RequestMapping("/owners/{ownerId}") // <1>
@@ -213,7 +213,7 @@ extracts the name, version, and file extension:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/{name:[a-z-]+}-{version:\\d\\.\\d\\.\\d}{ext:\\.[a-z]+}")
 	public void handle(@PathVariable String version, @PathVariable String ext) {
@@ -223,7 +223,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/{name:[a-z-]+}-{version:\\d\\.\\d\\.\\d}{ext:\\.[a-z]+}")
 	fun handle(@PathVariable version: String, @PathVariable ext: String) {
@@ -234,8 +234,8 @@ Kotlin::
 --
 
 URI path patterns can also have embedded `${...}` placeholders that are resolved on startup
-through `PropertySourcesPlaceholderConfigurer` against local, system, environment, and
-other property sources. You can use this to, for example, parameterize a base URL based on
+by using `PropertySourcesPlaceholderConfigurer` against local, system, environment, and
+other property sources. You can use this, for example, to parameterize a base URL based on
 some external configuration.
 
 NOTE: Spring WebFlux uses `PathPattern` and the `PathPatternParser` for URI path matching support.
@@ -274,7 +274,7 @@ as the following example shows:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@PostMapping(path = "/pets", consumes = "application/json")
 	public void addPet(@RequestBody Pet pet) {
@@ -284,7 +284,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@PostMapping("/pets", consumes = ["application/json"])
 	fun addPet(@RequestBody pet: Pet) {
@@ -315,7 +315,7 @@ content types that a controller method produces, as the following example shows:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping(path = "/pets/{petId}", produces = "application/json")
 	@ResponseBody
@@ -326,7 +326,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/pets/{petId}", produces = ["application/json"])
 	@ResponseBody
@@ -343,7 +343,7 @@ You can declare a shared `produces` attribute at the class level. Unlike most ot
 mapping attributes, however, when used at the class level, a method-level `produces` attribute
 overrides rather than extend the class level declaration.
 
-TIP: `MediaType` provides constants for commonly used media types -- e.g.
+TIP: `MediaType` provides constants for commonly used media types -- for example,
 `APPLICATION_JSON_VALUE`, `APPLICATION_XML_VALUE`.
 
 
@@ -359,7 +359,7 @@ specific value (`myParam=myValue`). The following examples tests for a parameter
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping(path = "/pets/{petId}", params = "myParam=myValue") // <1>
 	public void findPet(@PathVariable String petId) {
@@ -370,7 +370,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/pets/{petId}", params = ["myParam=myValue"]) // <1>
 	fun findPet(@PathVariable petId: String) {
@@ -386,7 +386,7 @@ You can also use the same with request header conditions, as the following examp
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping(path = "/pets/{petId}", headers = "myHeader=myValue") // <1>
 	public void findPet(@PathVariable String petId) {
@@ -397,7 +397,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@GetMapping("/pets/{petId}", headers = ["myHeader=myValue"]) // <1>
 	fun findPet(@PathVariable petId: String) {
@@ -406,6 +406,85 @@ Kotlin::
 ----
 <1> Check that `myHeader` equals `myValue`.
 ======
+
+
+[[webflux-ann-requestmapping-version]]
+== API Version
+[.small]#xref:web/webmvc/mvc-controller/ann-requestmapping.adoc#mvc-ann-requestmapping-version[See equivalent in the Servlet stack]#
+
+There is no standard way to specify an API version, so you need to configure that first
+through the xref:web/webflux/config.adoc#webflux-config-api-version[WebFlux Config] along with other
+config options. This results in the creation of an
+xref:web/webflux-versioning.adoc#webflux-versioning-strategy[ApiVersionStrategy] that in
+supports request mapping.
+
+Once API versioning is enabled, you can begin to map requests with versions.
+The `@RequestMapping` version attribute supports the following:
+
+- No value -- match any version
+- Fixed version ("1.2") -- match the given version only
+- Baseline version ("1.2+") -- match the given version and above
+
+If multiple controller methods have a version less than or equal to the request version,
+the one closest to the request version is considered for mapping purposes,
+in effect superseding the rest.
+
+To illustrate this, consider the following controller mappings:
+
+[tabs]
+======
+Java::
++
+[source,java,indent=0,subs="verbatim,quotes"]
+----
+	@RestController
+	@RequestMapping("/account/{id}")
+	public class AccountController {
+
+		@GetMapping // <1>
+		public Account getAccount() {
+		}
+
+		@GetMapping(version = "1.1") // <2>
+		public Account getAccount1_1() {
+		}
+
+		@GetMapping(version = "1.2+") // <3>
+		public Account getAccount1_2() {
+		}
+
+		@GetMapping(version = "1.5") // <4>
+		public Account getAccount1_5() {
+		}
+	}
+----
+<1> match any version
+<2> match version 1.1
+<3> match version 1.2 and above
+<4> match version 1.5
+======
+
+For request with version `"1.3"`:
+
+- (1) matches as it matches any version
+- (2) does not match
+- (3) matches as it matches 1.2 and above, and is *chosen* as the highest match
+- (4) is higher and does not match
+
+For request with version `"1.5"`:
+
+- (1) matches as it matches any version
+- (2) does not match
+- (3) matches as it matches 1.2 and above
+- (4) matches and is *chosen* as the highest match
+
+A request with version `"1.6"` does not have a match. (1) and (3) do match, but are
+superseded by (4), which does not match. In this scenario, `NotAcceptableApiVersionException`
+is raised resulting in a 400 response.
+
+NOTE: The above assumes the request version is a "supported" versions. If not it would
+fail xref:web/webflux-versioning.adoc#webflux-versioning-validation[Validation].
+
 
 
 
@@ -469,7 +548,7 @@ under different URLs. The following example shows how to do so:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@Configuration
 	public class MyConfig {
@@ -495,7 +574,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@Configuration
 	class MyConfig {
@@ -541,7 +620,7 @@ For example:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	@HttpExchange("/persons")
 	interface PersonService {
@@ -569,7 +648,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	@HttpExchange("/persons")
 	interface PersonService {

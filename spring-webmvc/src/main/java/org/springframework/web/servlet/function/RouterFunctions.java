@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ public abstract class RouterFunctions {
 	 * Resource resource = new ClassPathResource("static/index.html")
 	 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resource(path("/api/**").negate(), resource);
 	 * </pre>
-	 * @param predicate predicate to match
+	 * @param predicate the predicate to match
 	 * @param resource the resources to serve
 	 * @return a router function that routes to a resource
 	 * @since 6.1.4
@@ -152,7 +152,7 @@ public abstract class RouterFunctions {
 	 * Resource resource = new ClassPathResource("static/index.html")
 	 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resource(path("/api/**").negate(), resource);
 	 * </pre>
-	 * @param predicate predicate to match
+	 * @param predicate the predicate to match
 	 * @param resource the resources to serve
 	 * @param headersConsumer provides access to the HTTP headers for served resources
 	 * @return a router function that routes to a resource
@@ -160,6 +160,7 @@ public abstract class RouterFunctions {
 	 */
 	public static RouterFunction<ServerResponse> resource(RequestPredicate predicate, Resource resource,
 			BiConsumer<Resource, HttpHeaders> headersConsumer) {
+
 		return resources(new PredicateResourceLookupFunction(predicate, resource), headersConsumer);
 	}
 
@@ -167,7 +168,7 @@ public abstract class RouterFunctions {
 	 * Route requests that match the given pattern to resources relative to the given root location.
 	 * For instance
 	 * <pre class="code">
-	 * Resource location = new FileSystemResource("public-resources/");
+	 * Resource location = new FileUrlResource("public-resources/");
 	 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resources("/resources/**", location);
      * </pre>
 	 * @param pattern the pattern to match
@@ -184,7 +185,7 @@ public abstract class RouterFunctions {
 	 * Route requests that match the given pattern to resources relative to the given root location.
 	 * For instance
 	 * <pre class="code">
-	 * Resource location = new FileSystemResource("public-resources/");
+	 * Resource location = new FileUrlResource("public-resources/");
 	 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resources("/resources/**", location);
      * </pre>
 	 * @param pattern the pattern to match
@@ -197,6 +198,7 @@ public abstract class RouterFunctions {
 	 */
 	public static RouterFunction<ServerResponse> resources(String pattern, Resource location,
 			BiConsumer<Resource, HttpHeaders> headersConsumer) {
+
 		return resources(resourceLookupFunction(pattern, location), headersConsumer);
 	}
 
@@ -207,7 +209,7 @@ public abstract class RouterFunctions {
 	 * <pre class="code">
 	 * Optional&lt;Resource&gt; defaultResource = Optional.of(new ClassPathResource("index.html"));
 	 * Function&lt;ServerRequest, Optional&lt;Resource&gt;&gt; lookupFunction =
-	 *   RouterFunctions.resourceLookupFunction("/resources/**", new FileSystemResource("public-resources/"))
+	 *   RouterFunctions.resourceLookupFunction("/resources/**", new FileUrlResource("public-resources/"))
 	 *     .andThen(resource -&gt; resource.or(() -&gt; defaultResource));
 	 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resources(lookupFunction);
      * </pre>
@@ -240,7 +242,9 @@ public abstract class RouterFunctions {
 	 * @return a router function that routes to resources
 	 * @since 6.1
 	 */
-	public static RouterFunction<ServerResponse> resources(Function<ServerRequest, Optional<Resource>> lookupFunction, BiConsumer<Resource, HttpHeaders> headersConsumer) {
+	public static RouterFunction<ServerResponse> resources(Function<ServerRequest, Optional<Resource>> lookupFunction,
+			BiConsumer<Resource, HttpHeaders> headersConsumer) {
+
 		return new ResourcesRouterFunction(lookupFunction, headersConsumer);
 	}
 
@@ -250,12 +254,12 @@ public abstract class RouterFunctions {
 	 * can be used to change the {@code PathPatternParser} properties from the defaults, for instance to change
 	 * {@linkplain PathPatternParser#setCaseSensitive(boolean) case sensitivity}.
 	 * @param routerFunction the router function to change the parser in
-	 * @param parser the parser to change to.
+	 * @param parser the parser to change to
 	 * @param <T> the type of response returned by the handler function
 	 * @return the change router function
 	 */
-	public static <T extends ServerResponse> RouterFunction<T> changeParser(RouterFunction<T> routerFunction,
-			PathPatternParser parser) {
+	public static <T extends ServerResponse> RouterFunction<T> changeParser(
+			RouterFunction<T> routerFunction, PathPatternParser parser) {
 
 		Assert.notNull(routerFunction, "RouterFunction must not be null");
 		Assert.notNull(parser, "Parser must not be null");
@@ -294,7 +298,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code GET} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code GET} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -346,7 +350,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code HEAD} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code HEAD} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -389,7 +393,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code POST} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code POST} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -440,7 +444,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code PUT} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code PUT} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -491,7 +495,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code PATCH} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code PATCH} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -542,7 +546,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code DELETE} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code DELETE} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -585,7 +589,7 @@ public abstract class RouterFunctions {
 		/**
 		 * Adds a route to the given handler function that handles all HTTP {@code OPTIONS} requests
 		 * that match the given predicate.
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param handlerFunction the handler function to handle all {@code OPTIONS} requests that
 		 * match {@code predicate}
 		 * @return this builder
@@ -644,7 +648,7 @@ public abstract class RouterFunctions {
 		 * Resource resource = new ClassPathResource("static/index.html")
 		 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resource(path("/api/**").negate(), resource);
 		 * </pre>
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param resource the resources to serve
 		 * @return a router function that routes to a resource
 		 * @since 6.1.4
@@ -658,7 +662,7 @@ public abstract class RouterFunctions {
 		 * Resource resource = new ClassPathResource("static/index.html")
 		 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resource(path("/api/**").negate(), resource);
 		 * </pre>
-		 * @param predicate predicate to match
+		 * @param predicate the predicate to match
 		 * @param resource the resources to serve
 		 * @param headersConsumer provides access to the HTTP headers for served resources
 		 * @return a router function that routes to a resource
@@ -670,7 +674,7 @@ public abstract class RouterFunctions {
 		 * Route requests that match the given pattern to resources relative to the given root location.
 		 * For instance
 		 * <pre class="code">
-		 * Resource location = new FileSystemResource("public-resources/");
+		 * Resource location = new FileUrlResource("public-resources/");
 		 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resources("/resources/**", location);
 	     * </pre>
 		 * @param pattern the pattern to match
@@ -684,7 +688,7 @@ public abstract class RouterFunctions {
 		 * Route requests that match the given pattern to resources relative to the given root location.
 		 * For instance
 		 * <pre class="code">
-		 * Resource location = new FileSystemResource("public-resources/");
+		 * Resource location = new FileUrlResource("public-resources/");
 		 * RouterFunction&lt;ServerResponse&gt; resources = RouterFunctions.resources("/resources/**", location);
 	     * </pre>
 		 * @param pattern the pattern to match
@@ -1151,7 +1155,6 @@ public abstract class RouterFunctions {
 		public void accept(Visitor visitor) {
 			visitor.route(this.predicate, this.handlerFunction);
 		}
-
 	}
 
 
@@ -1173,16 +1176,18 @@ public abstract class RouterFunctions {
 			return this.predicate.nest(serverRequest)
 					.map(nestedRequest -> {
 								if (logger.isTraceEnabled()) {
-									logger.trace(
-											String.format(
-													"Nested predicate \"%s\" matches against \"%s\"",
-													this.predicate, serverRequest));
+									logger.trace(String.format("Nested predicate \"%s\" matches against \"%s\"",
+											this.predicate, serverRequest));
 								}
-								Optional<HandlerFunction<T>> result =
-										this.routerFunction.route(nestedRequest);
+								Optional<HandlerFunction<T>> result = this.routerFunction.route(nestedRequest);
 								if (result.isPresent() && nestedRequest != serverRequest) {
-									serverRequest.attributes().clear();
-									serverRequest.attributes().putAll(nestedRequest.attributes());
+									// new attributes map from nestedRequest.attributes() can be composed of the old attributes,
+									// which means that clearing the old attributes will remove those values from new attributes as well
+									// so let's make a copy
+									Map<String, Object> newAttributes = new LinkedHashMap<>(nestedRequest.attributes());
+									Map<String, Object> oldAttributes = serverRequest.attributes();
+									oldAttributes.clear();
+									oldAttributes.putAll(newAttributes);
 								}
 								return result;
 							}
@@ -1197,7 +1202,6 @@ public abstract class RouterFunctions {
 			this.routerFunction.accept(visitor);
 			visitor.endNested(this.predicate);
 		}
-
 	}
 
 
@@ -1207,11 +1211,11 @@ public abstract class RouterFunctions {
 
 		private final BiConsumer<Resource, HttpHeaders> headersConsumer;
 
-
 		public ResourcesRouterFunction(Function<ServerRequest, Optional<Resource>> lookupFunction,
 				BiConsumer<Resource, HttpHeaders> headersConsumer) {
-			Assert.notNull(lookupFunction, "Function must not be null");
-			Assert.notNull(headersConsumer, "HeadersConsumer must not be null");
+
+			Assert.notNull(lookupFunction, "Lookup function must not be null");
+			Assert.notNull(headersConsumer, "Headers consumer must not be null");
 			this.lookupFunction = lookupFunction;
 			this.headersConsumer = headersConsumer;
 		}
@@ -1278,6 +1282,5 @@ public abstract class RouterFunctions {
 			return new AttributesRouterFunction<>(this.delegate, attributes);
 		}
 	}
-
 
 }

@@ -82,7 +82,7 @@ public class InMemoryWebSessionStore implements WebSessionStore {
 	 * Configure the {@link Clock} to use to set lastAccessTime on every created
 	 * session and to calculate if it is expired.
 	 * <p>This may be useful to align to different timezone or to set the clock
-	 * back in a test, e.g. {@code Clock.offset(clock, Duration.ofMinutes(-31))}
+	 * back in a test, for example, {@code Clock.offset(clock, Duration.ofMinutes(-31))}
 	 * in order to simulate session expiration.
 	 * <p>By default this is {@code Clock.system(ZoneId.of("GMT"))}.
 	 * @param clock the clock to use
@@ -189,6 +189,7 @@ public class InMemoryWebSessionStore implements WebSessionStore {
 		}
 
 		@Override
+		@SuppressWarnings("NullAway") // Dataflow analysis limitation
 		public String getId() {
 			return this.id.get();
 		}
@@ -224,6 +225,7 @@ public class InMemoryWebSessionStore implements WebSessionStore {
 		}
 
 		@Override
+		@SuppressWarnings("NullAway") // Dataflow analysis limitation
 		public boolean isStarted() {
 			return this.state.get().equals(State.STARTED) || !getAttributes().isEmpty();
 		}
@@ -252,6 +254,7 @@ public class InMemoryWebSessionStore implements WebSessionStore {
 		}
 
 		@Override
+		@SuppressWarnings("NullAway") // Dataflow analysis limitation
 		public Mono<Void> save() {
 
 			checkMaxSessionsLimit();
@@ -289,6 +292,7 @@ public class InMemoryWebSessionStore implements WebSessionStore {
 			return isExpired(clock.instant());
 		}
 
+		@SuppressWarnings("NullAway") // Dataflow analysis limitation
 		private boolean isExpired(Instant now) {
 			if (this.state.get().equals(State.EXPIRED)) {
 				return true;

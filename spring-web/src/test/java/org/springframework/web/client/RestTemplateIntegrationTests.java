@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,10 +30,11 @@ import java.util.stream.Stream;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.extension.TestExecutionExceptionHandler;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import org.springframework.core.ParameterizedTypeReference;
@@ -50,7 +51,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.client.JettyClientHttpRequestFactory;
-import org.springframework.http.client.ReactorNettyClientRequestFactory;
+import org.springframework.http.client.ReactorClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJacksonValue;
@@ -60,7 +61,7 @@ import org.springframework.util.MultiValueMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.junit.jupiter.api.Named.named;
+import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.MediaType.MULTIPART_MIXED;
 
@@ -85,20 +86,18 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.METHOD)
-	@ParameterizedTest(name = "[{index}] {0}")
+	@ParameterizedTest
 	@MethodSource("clientHttpRequestFactories")
 	@interface ParameterizedRestTemplateTest {
 	}
 
-	@SuppressWarnings("removal")
-	static Stream<Named<ClientHttpRequestFactory>> clientHttpRequestFactories() {
+	static Stream<Arguments> clientHttpRequestFactories() {
 		return Stream.of(
-			named("JDK HttpURLConnection", new SimpleClientHttpRequestFactory()),
-			named("HttpComponents", new HttpComponentsClientHttpRequestFactory()),
-			named("OkHttp", new org.springframework.http.client.OkHttp3ClientHttpRequestFactory()),
-			named("Jetty", new JettyClientHttpRequestFactory()),
-			named("JDK HttpClient", new JdkClientHttpRequestFactory()),
-			named("Reactor Netty", new ReactorNettyClientRequestFactory())
+			argumentSet("JDK HttpURLConnection", new SimpleClientHttpRequestFactory()),
+			argumentSet("HttpComponents", new HttpComponentsClientHttpRequestFactory()),
+			argumentSet("Jetty", new JettyClientHttpRequestFactory()),
+			argumentSet("JDK HttpClient", new JdkClientHttpRequestFactory()),
+			argumentSet("Reactor Netty", new ReactorClientHttpRequestFactory())
 		);
 	}
 
@@ -241,12 +240,16 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	void notFound(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
+		String url = baseUrl + "/status/notfound";
 		assertThatExceptionOfType(HttpClientErrorException.class).isThrownBy(() ->
-				template.execute(baseUrl + "/status/notfound", HttpMethod.GET, null, null))
+				template.execute(url, HttpMethod.GET, null, null))
 			.satisfies(ex -> {
 				assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 				assertThat(ex.getStatusText()).isNotNull();
 				assertThat(ex.getResponseBodyAsString()).isNotNull();
+				assertThat(ex.getMessage()).containsSubsequence("404", "on GET request for \"" + url + "\": [no body]");
+				assumeFalse(clientHttpRequestFactory instanceof JdkClientHttpRequestFactory, "JDK HttpClient does not expose status text");
+				assertThat(ex.getMessage()).isEqualTo("404 Client Error on GET request for \"" + url + "\": [no body]");
 			});
 	}
 
@@ -254,12 +257,14 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	void badRequest(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
+		String url = baseUrl + "/status/badrequest";
 		assertThatExceptionOfType(HttpClientErrorException.class).isThrownBy(() ->
-				template.execute(baseUrl + "/status/badrequest", HttpMethod.GET, null, null))
+				template.execute(url, HttpMethod.GET, null, null))
 			.satisfies(ex -> {
 				assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(ex.getMessage()).containsSubsequence("400", "on GET request for \""+url+ "\": [no body]");
 				assumeFalse(clientHttpRequestFactory instanceof JdkClientHttpRequestFactory, "JDK HttpClient does not expose status text");
-				assertThat(ex.getMessage()).isEqualTo("400 Client Error: [no body]");
+				assertThat(ex.getMessage()).isEqualTo("400 Client Error on GET request for \""+url+ "\": [no body]");
 			});
 	}
 
@@ -267,12 +272,16 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	void serverError(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
+		String url = baseUrl + "/status/server";
 		assertThatExceptionOfType(HttpServerErrorException.class).isThrownBy(() ->
-				template.execute(baseUrl + "/status/server", HttpMethod.GET, null, null))
+				template.execute(url, HttpMethod.GET, null, null))
 			.satisfies(ex -> {
 				assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 				assertThat(ex.getStatusText()).isNotNull();
 				assertThat(ex.getResponseBodyAsString()).isNotNull();
+				assertThat(ex.getMessage()).containsSubsequence("500", "on GET request for \"" + url + "\": [no body]");
+				assumeFalse(clientHttpRequestFactory instanceof JdkClientHttpRequestFactory, "JDK HttpClient does not expose status text");
+				assertThat(ex.getMessage()).isEqualTo("500 Server Error on GET request for \"" + url + "\": [no body]");
 			});
 	}
 
@@ -399,7 +408,9 @@ class RestTemplateIntegrationTests extends AbstractMockWebServerTests {
 	}
 
 	@ParameterizedRestTemplateTest
-	void jsonPostForObjectWithJacksonView(ClientHttpRequestFactory clientHttpRequestFactory) {
+	@Disabled("Use RestClient + upcoming hint management instead")
+	@SuppressWarnings("removal")
+	void jsonPostForObjectWithJacksonJsonView(ClientHttpRequestFactory clientHttpRequestFactory) {
 		setUpClient(clientHttpRequestFactory);
 
 		HttpHeaders entityHeaders = new HttpHeaders();

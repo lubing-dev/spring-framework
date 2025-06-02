@@ -1,6 +1,6 @@
 plugins {
 	id 'java-platform'
-	id 'io.freefair.aggregate-javadoc' version '8.3'
+	id 'io.freefair.aggregate-javadoc' version '8.13.1'
 }
 
 description = "Spring Framework API Docs"
@@ -9,7 +9,7 @@ apply from: "${rootDir}/gradle/publications.gradle"
 
 repositories {
 	maven {
-		url "https://repo.spring.io/release"
+		url = "https://repo.spring.io/release"
 	}
 }
 
@@ -20,7 +20,12 @@ dependencies {
 }
 
 javadoc {
+	javadocTool.set(javaToolchains.javadocToolFor({
+		languageVersion = JavaLanguageVersion.of(24)
+	}))
+
 	title = "${rootProject.description} ${version} API"
+	failOnError = true
 	options {
 		encoding = "UTF-8"
 		memberLevel = JavadocMemberLevel.PROTECTED
@@ -28,11 +33,16 @@ javadoc {
 		header = rootProject.description
 		use = true
 		overview = project.relativePath("$rootProject.rootDir/framework-docs/src/docs/api/overview.html")
-		destinationDir = file("$project.docsDir/javadoc-api")
+		destinationDir = project.java.docsDir.dir("javadoc-api").get().asFile
 		splitIndex = true
 		links(rootProject.ext.javadocLinks)
-		addBooleanOption('Xdoclint:syntax,reference', true) // only check syntax and reference with doclint
-		addBooleanOption('Werror', true) // fail build on Javadoc warnings
+		// Check for 'syntax' and 'reference' during linting.
+		addBooleanOption('Xdoclint:syntax,reference', true)
+		// Change modularity mismatch from warn to info.
+		// See https://github.com/spring-projects/spring-framework/issues/27497
+		addStringOption("-link-modularity-mismatch", "info")
+		// Fail build on Javadoc warnings.
+		addBooleanOption('Werror', true)
 	}
 	maxMemory = "1024m"
 	doFirst {
@@ -52,7 +62,7 @@ rootProject.tasks.dokkaHtmlMultiModule.configure {
 		tasks.named("javadoc")
 	}
 	moduleName.set("spring-framework")
-	outputDirectory.set(file("$docsDir/kdoc-api"))
+	outputDirectory.set(project.java.docsDir.dir("kdoc-api").get().asFile)
 	includes.from("$rootProject.rootDir/framework-docs/src/docs/api/dokka-overview.md")
 }
 
@@ -87,7 +97,7 @@ tasks.register('schemaZip', Zip) {
 	archiveClassifier.set("schema")
 	description = "Builds -${archiveClassifier} archive containing all " +
 			"XSDs for deployment at https://springframework.org/schema."
-	duplicatesStrategy DuplicatesStrategy.EXCLUDE
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 	moduleProjects.each { module ->
 		def Properties schemas = new Properties();
 

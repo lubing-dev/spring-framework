@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 
@@ -91,6 +94,17 @@ class MockHttpServletRequestTests {
 		MockHttpServletRequest secondRequest = new MockHttpServletRequest();
 		secondRequest.getInputStream().readAllBytes();
 		secondRequest.getInputStream().close();
+	}
+
+	@Test // gh-32820
+	void readEmptyReaderWorksAcrossRequests() throws IOException {
+		MockHttpServletRequest firstRequest = new MockHttpServletRequest();
+		firstRequest.getReader().read(new char[256]);
+		firstRequest.getReader().close();
+
+		MockHttpServletRequest secondRequest = new MockHttpServletRequest();
+		secondRequest.getReader().read(new char[256]);
+		secondRequest.getReader().close();
 	}
 
 	@Test
@@ -210,6 +224,15 @@ class MockHttpServletRequestTests {
 		assertThat(request.getContentType()).isEqualTo(contentType);
 		assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(contentType);
 		assertThat(request.getCharacterEncoding()).isEqualTo("UTF-8");
+	}
+
+	@Test
+	void contentTypeMultipleCalls() {
+		String contentType = "text/html";
+		request.addHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
+		request.addHeader(HttpHeaders.CONTENT_TYPE, contentType);
+		assertThat(request.getContentType()).isEqualTo(contentType);
+		assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(contentType);
 	}
 
 	@Test  // SPR-12677
@@ -652,6 +675,44 @@ class MockHttpServletRequestTests {
 				request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE));
 	}
 
+	@Test
+	void shouldRejectAsyncStartsIfUnsupported() {
+		assertThat(request.isAsyncStarted()).isFalse();
+		assertThatIllegalStateException().isThrownBy(request::startAsync);
+	}
+
+	@Test
+	void startAsyncShouldUpdateRequestState() {
+		assertThat(request.isAsyncStarted()).isFalse();
+		request.setAsyncSupported(true);
+		request.startAsync();
+		assertThat(request.isAsyncStarted()).isTrue();
+	}
+
+	@Test
+	void shouldNotifyAsyncListeners() {
+		request.setAsyncSupported(true);
+		AsyncContext asyncContext = request.startAsync();
+		TestAsyncListener testAsyncListener = new TestAsyncListener();
+		asyncContext.addListener(testAsyncListener);
+		asyncContext.complete();
+		assertThat(testAsyncListener.events).hasSize(1);
+		assertThat(testAsyncListener.events.get(0)).extracting("name").isEqualTo("onComplete");
+	}
+
+	@Test
+	void shouldNotifyAsyncListenersWhenNewAsyncStarted() {
+		request.setAsyncSupported(true);
+		AsyncContext asyncContext = request.startAsync();
+		TestAsyncListener testAsyncListener = new TestAsyncListener();
+		asyncContext.addListener(testAsyncListener);
+		AsyncContext newAsyncContext = request.startAsync();
+		assertThat(testAsyncListener.events).hasSize(1);
+		ListenerEvent listenerEvent = testAsyncListener.events.get(0);
+		assertThat(listenerEvent).extracting("name").isEqualTo("onStartAsync");
+		assertThat(listenerEvent.event.getAsyncContext()).isEqualTo(newAsyncContext);
+	}
+
 	private void assertEqualEnumerations(Enumeration<?> enum1, Enumeration<?> enum2) {
 		int count = 0;
 		while (enum1.hasMoreElements()) {
@@ -660,5 +721,32 @@ class MockHttpServletRequestTests {
 			assertThat(enum2.nextElement()).as(message).isEqualTo(enum1.nextElement());
 		}
 	}
+
+	static class TestAsyncListener implements AsyncListener {
+
+		List<ListenerEvent> events = new ArrayList<>();
+
+		@Override
+		public void onComplete(AsyncEvent asyncEvent) throws IOException {
+			this.events.add(new ListenerEvent("onComplete", asyncEvent));
+		}
+
+		@Override
+		public void onTimeout(AsyncEvent asyncEvent) throws IOException {
+			this.events.add(new ListenerEvent("onTimeout", asyncEvent));
+		}
+
+		@Override
+		public void onError(AsyncEvent asyncEvent) throws IOException {
+			this.events.add(new ListenerEvent("onError", asyncEvent));
+		}
+
+		@Override
+		public void onStartAsync(AsyncEvent asyncEvent) throws IOException {
+			this.events.add(new ListenerEvent("onStartAsync", asyncEvent));
+		}
+	}
+
+	record ListenerEvent(String name, AsyncEvent event) {}
 
 }

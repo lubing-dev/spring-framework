@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ApplicationContextFailureProcessor;
 
@@ -37,10 +39,10 @@ public class TrackingApplicationContextFailureProcessor implements ApplicationCo
 
 
 	@Override
-	public void processLoadFailure(ApplicationContext context, Throwable exception) {
+	public void processLoadFailure(ApplicationContext context, @Nullable Throwable exception) {
 		loadFailures.add(new LoadFailure(context, exception));
 	}
 
-	public record LoadFailure(ApplicationContext context, Throwable exception) {}
+	public record LoadFailure(ApplicationContext context, @Nullable Throwable exception) {}
 
 }

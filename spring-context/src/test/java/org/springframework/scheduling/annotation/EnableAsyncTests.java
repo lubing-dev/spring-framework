@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.awaitility.Awaitility;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.aop.Advisor;
@@ -49,7 +50,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.Ordered;
-import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
@@ -96,6 +96,7 @@ class EnableAsyncTests {
 	@Test
 	void properExceptionForExistingProxyDependencyMismatch() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.setAllowBeanDefinitionOverriding(true);
 		ctx.register(AsyncConfig.class, AsyncBeanWithInterface.class, AsyncBeanUser.class);
 		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(ctx::refresh)
 				.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
@@ -105,6 +106,7 @@ class EnableAsyncTests {
 	@Test
 	void properExceptionForResolvedProxyDependencyMismatch() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.setAllowBeanDefinitionOverriding(true);
 		ctx.register(AsyncConfig.class, AsyncBeanUser.class, AsyncBeanWithInterface.class);
 		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(ctx::refresh)
 				.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);
@@ -226,7 +228,7 @@ class EnableAsyncTests {
 		asyncBean.work();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.until(() -> asyncBean.getThreadOfExecution() != null);
 		assertThat(asyncBean.getThreadOfExecution().getName()).startsWith("Custom-");
@@ -244,7 +246,7 @@ class EnableAsyncTests {
 		asyncBean.work();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.until(() -> asyncBean.getThreadOfExecution() != null);
 		assertThat(asyncBean.getThreadOfExecution().getName()).startsWith("Custom-");
@@ -266,7 +268,7 @@ class EnableAsyncTests {
 		asyncBean.fail();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.untilAsserted(() -> exceptionHandler.assertCalledWith(method, UnsupportedOperationException.class));
 		ctx.close();
@@ -283,7 +285,7 @@ class EnableAsyncTests {
 		asyncBean.work();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.until(() -> asyncBean.getThreadOfExecution() != null);
 		assertThat(asyncBean.getThreadOfExecution().getName()).startsWith("Post-");
@@ -305,7 +307,7 @@ class EnableAsyncTests {
 		asyncBean.fail();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.untilAsserted(() -> exceptionHandler.assertCalledWith(method, UnsupportedOperationException.class));
 		ctx.close();
@@ -320,7 +322,7 @@ class EnableAsyncTests {
 		asyncBean.work();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.until(() -> asyncBean.getThreadOfExecution() != null);
 		assertThat(asyncBean.getThreadOfExecution().getName()).startsWith("Custom-");
@@ -336,7 +338,7 @@ class EnableAsyncTests {
 		asyncBean.work();
 		// Assert
 		Awaitility.await()
-					.atMost(500, TimeUnit.MILLISECONDS)
+					.atMost(5, TimeUnit.SECONDS)
 					.pollInterval(10, TimeUnit.MILLISECONDS)
 					.until(() -> asyncBean.getThreadOfExecution() != null);
 		assertThat(asyncBean.getThreadOfExecution().getName()).startsWith("Custom-");
@@ -628,9 +630,8 @@ class EnableAsyncTests {
 
 	public static class ExecutorPostProcessor implements BeanPostProcessor {
 
-		@Nullable
 		@Override
-		public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+		public @Nullable Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
 			if (bean instanceof ThreadPoolTaskExecutor) {
 				((ThreadPoolTaskExecutor) bean).setThreadNamePrefix("Post-");
 			}

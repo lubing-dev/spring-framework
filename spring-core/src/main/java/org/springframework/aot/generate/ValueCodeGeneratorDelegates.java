@@ -30,11 +30,12 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.aot.generate.ValueCodeGenerator.Delegate;
 import org.springframework.core.ResolvableType;
 import org.springframework.javapoet.CodeBlock;
 import org.springframework.javapoet.CodeBlock.Builder;
-import org.springframework.lang.Nullable;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
 
@@ -94,7 +95,7 @@ public abstract class ValueCodeGeneratorDelegates {
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
 			if (this.collectionType.isInstance(value)) {
 				T collection = (T) value;
 				if (collection.isEmpty()) {
@@ -135,7 +136,7 @@ public abstract class ValueCodeGeneratorDelegates {
 		private static final CodeBlock EMPTY_RESULT = CodeBlock.of("$T.emptyMap()", Collections.class);
 
 		@Override
-		public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
 			if (value instanceof Map<?, ?> map) {
 				if (map.isEmpty()) {
 					return EMPTY_RESULT;
@@ -152,8 +153,7 @@ public abstract class ValueCodeGeneratorDelegates {
 		 * @return the code that represents the specified map or {@code null} if
 		 * the specified map is not supported.
 		 */
-		@Nullable
-		protected CodeBlock generateMapCode(ValueCodeGenerator valueCodeGenerator, Map<?, ?> map) {
+		protected @Nullable CodeBlock generateMapCode(ValueCodeGenerator valueCodeGenerator, Map<?, ?> map) {
 			map = orderForCodeConsistency(map);
 			boolean useOfEntries = map.size() > 10;
 			CodeBlock.Builder code = CodeBlock.builder();
@@ -207,8 +207,7 @@ public abstract class ValueCodeGeneratorDelegates {
 
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof Boolean || value instanceof Integer) {
 				return CodeBlock.of("$L", value);
 			}
@@ -238,8 +237,8 @@ public abstract class ValueCodeGeneratorDelegates {
 			if (escaped != null) {
 				return escaped;
 			}
-			return (!Character.isISOControl(ch)) ? Character.toString(ch)
-					: String.format("\\u%04x", (int) ch);
+			return (!Character.isISOControl(ch)) ? Character.toString(ch) :
+					String.format("\\u%04x", (int) ch);
 		}
 	}
 
@@ -250,8 +249,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class StringDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof String) {
 				return CodeBlock.of("$S", value);
 			}
@@ -266,8 +264,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class CharsetDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof Charset charset) {
 				return CodeBlock.of("$T.forName($S)", Charset.class, charset.name());
 			}
@@ -282,8 +279,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class EnumDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof Enum<?> enumValue) {
 				return CodeBlock.of("$T.$L", enumValue.getDeclaringClass(),
 						enumValue.name());
@@ -299,8 +295,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class ClassDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof Class<?> clazz) {
 				return CodeBlock.of("$T.class", ClassUtils.getUserClass(clazz));
 			}
@@ -315,8 +310,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class ResolvableTypeDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value instanceof ResolvableType resolvableType) {
 				return generateCode(resolvableType, false);
 			}
@@ -329,7 +323,7 @@ public abstract class ValueCodeGeneratorDelegates {
 				return CodeBlock.of("$T.NONE", ResolvableType.class);
 			}
 			Class<?> type = ClassUtils.getUserClass(resolvableType.toClass());
-			if (resolvableType.hasGenerics() && !resolvableType.hasUnresolvableGenerics()) {
+			if (resolvableType.hasGenerics() && resolvableType.hasResolvableGenerics()) {
 				return generateCodeWithGenerics(resolvableType, type);
 			}
 			if (allowClassResult) {
@@ -358,8 +352,7 @@ public abstract class ValueCodeGeneratorDelegates {
 	private static class ArrayDelegate implements Delegate {
 
 		@Override
-		@Nullable
-		public CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
+		public @Nullable CodeBlock generateCode(ValueCodeGenerator codeGenerator, Object value) {
 			if (value.getClass().isArray()) {
 				Stream<CodeBlock> elements = Arrays.stream(ObjectUtils.toObjectArray(value))
 						.map(codeGenerator::generateCode);

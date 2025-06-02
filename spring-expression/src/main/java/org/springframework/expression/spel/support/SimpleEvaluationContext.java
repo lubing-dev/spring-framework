@@ -23,11 +23,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.BeanResolver;
-import org.springframework.expression.ConstructorResolver;
 import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.IndexAccessor;
 import org.springframework.expression.MethodResolver;
 import org.springframework.expression.OperatorOverloader;
 import org.springframework.expression.PropertyAccessor;
@@ -37,7 +39,6 @@ import org.springframework.expression.TypeLocator;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
-import org.springframework.lang.Nullable;
 
 /**
  * A basic implementation of {@link EvaluationContext} that focuses on a subset
@@ -48,28 +49,29 @@ import org.springframework.lang.Nullable;
  * should be meaningfully restricted. Examples include but are not limited to
  * data binding expressions, property-based filters, and others. To that effect,
  * {@code SimpleEvaluationContext} is tailored to support only a subset of the
- * SpEL language syntax, e.g. excluding references to Java types, constructors,
+ * SpEL language syntax, for example, excluding references to Java types, constructors,
  * and bean references.
  *
- * <p>When creating a {@code SimpleEvaluationContext} you need to choose the
- * level of support that you need for property access in SpEL expressions:
+ * <p>When creating a {@code SimpleEvaluationContext} you need to choose the level of
+ * support that you need for data binding in SpEL expressions:
  * <ul>
- * <li>A custom {@code PropertyAccessor} (typically not reflection-based),
- * potentially combined with a {@link DataBindingPropertyAccessor}</li>
- * <li>Data binding properties for read-only access</li>
- * <li>Data binding properties for read and write</li>
+ * <li>Data binding for read-only access</li>
+ * <li>Data binding for read and write access</li>
+ * <li>A custom {@code PropertyAccessor} (typically not reflection-based), potentially
+ * combined with a {@link DataBindingPropertyAccessor}</li>
  * </ul>
  *
- * <p>Conveniently, {@link SimpleEvaluationContext#forReadOnlyDataBinding()}
- * enables read access to properties via {@link DataBindingPropertyAccessor};
- * same for {@link SimpleEvaluationContext#forReadWriteDataBinding()} when
- * write access is needed as well. Alternatively, configure custom accessors
- * via {@link SimpleEvaluationContext#forPropertyAccessors}, and potentially
+ * <p>Conveniently, {@link SimpleEvaluationContext#forReadOnlyDataBinding()} enables
+ * read-only access to properties via {@link DataBindingPropertyAccessor}. Similarly,
+ * {@link SimpleEvaluationContext#forReadWriteDataBinding()} enables read and write access
+ * to properties. Alternatively, configure custom accessors via
+ * {@link SimpleEvaluationContext#forPropertyAccessors}, potentially
+ * {@linkplain Builder#withAssignmentDisabled() disable assignment}, and optionally
  * activate method resolution and/or a type converter through the builder.
  *
  * <p>Note that {@code SimpleEvaluationContext} is typically not configured
  * with a default root object. Instead it is meant to be created once and
- * used repeatedly through {@code getValue} calls on a pre-compiled
+ * used repeatedly through {@code getValue} calls on a predefined
  * {@link org.springframework.expression.Expression} with both an
  * {@code EvaluationContext} and a root object as arguments:
  * {@link org.springframework.expression.Expression#getValue(EvaluationContext, Object)}.
@@ -89,9 +91,9 @@ import org.springframework.lang.Nullable;
  * @author Juergen Hoeller
  * @author Sam Brannen
  * @since 4.3.15
- * @see #forPropertyAccessors
  * @see #forReadOnlyDataBinding()
  * @see #forReadWriteDataBinding()
+ * @see #forPropertyAccessors
  * @see StandardEvaluationContext
  * @see StandardTypeConverter
  * @see DataBindingPropertyAccessor
@@ -108,6 +110,8 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 
 	private final List<PropertyAccessor> propertyAccessors;
 
+	private final List<IndexAccessor> indexAccessors;
+
 	private final List<MethodResolver> methodResolvers;
 
 	private final TypeConverter typeConverter;
@@ -118,14 +122,19 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 
 	private final Map<String, Object> variables = new HashMap<>();
 
+	private final boolean assignmentEnabled;
 
-	private SimpleEvaluationContext(List<PropertyAccessor> accessors, List<MethodResolver> resolvers,
-			@Nullable TypeConverter converter, @Nullable TypedValue rootObject) {
 
-		this.propertyAccessors = accessors;
+	private SimpleEvaluationContext(List<PropertyAccessor> propertyAccessors, List<IndexAccessor> indexAccessors,
+			List<MethodResolver> resolvers, @Nullable TypeConverter converter, @Nullable TypedValue rootObject,
+			boolean assignmentEnabled) {
+
+		this.propertyAccessors = propertyAccessors;
+		this.indexAccessors = indexAccessors;
 		this.methodResolvers = resolvers;
 		this.typeConverter = (converter != null ? converter : new StandardTypeConverter());
 		this.rootObject = (rootObject != null ? rootObject : TypedValue.NULL);
+		this.assignmentEnabled = assignmentEnabled;
 	}
 
 
@@ -147,12 +156,13 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 	}
 
 	/**
-	 * Return an empty list, always, since this context does not support the
-	 * use of type references.
+	 * Return the specified {@link IndexAccessor} delegates, if any.
+	 * @since 6.2
+	 * @see Builder#withIndexAccessors(IndexAccessor...)
 	 */
 	@Override
-	public List<ConstructorResolver> getConstructorResolvers() {
-		return Collections.emptyList();
+	public List<IndexAccessor> getIndexAccessors() {
+		return this.indexAccessors;
 	}
 
 	/**
@@ -169,8 +179,7 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 	 * @return always {@code null}
 	 */
 	@Override
-	@Nullable
-	public BeanResolver getBeanResolver() {
+	public @Nullable BeanResolver getBeanResolver() {
 		return null;
 	}
 
@@ -248,20 +257,39 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 	 * @return the value of the variable or function, or {@code null} if not found
 	 */
 	@Override
-	@Nullable
-	public Object lookupVariable(String name) {
+	public @Nullable Object lookupVariable(String name) {
 		return this.variables.get(name);
 	}
 
+	/**
+	 * Determine if assignment is enabled within expressions evaluated by this evaluation
+	 * context.
+	 * <p>If this method returns {@code false}, the assignment ({@code =}), increment
+	 * ({@code ++}), and decrement ({@code --}) operators are disabled.
+	 * @return {@code true} if assignment is enabled; {@code false} otherwise
+	 * @since 5.3.38
+	 * @see #forReadOnlyDataBinding()
+	 * @see Builder#withAssignmentDisabled()
+	 */
+	@Override
+	public boolean isAssignmentEnabled() {
+		return this.assignmentEnabled;
+	}
 
 	/**
 	 * Create a {@code SimpleEvaluationContext} for the specified {@link PropertyAccessor}
-	 * delegates: typically a custom {@code PropertyAccessor} specific to a use case
-	 * (e.g. attribute resolution in a custom data structure), potentially combined with
-	 * a {@link DataBindingPropertyAccessor} if property dereferences are needed as well.
+	 * delegates: typically a custom {@code PropertyAccessor} specific to a use case &mdash;
+	 * for example, for attribute resolution in a custom data structure &mdash; potentially
+	 * combined with a {@link DataBindingPropertyAccessor} if property dereferences are
+	 * needed as well.
+	 * <p>By default, assignment is enabled within expressions evaluated by the context
+	 * created via this factory method; however, assignment can be disabled via
+	 * {@link Builder#withAssignmentDisabled()}.
 	 * @param accessors the accessor delegates to use
 	 * @see DataBindingPropertyAccessor#forReadOnlyAccess()
 	 * @see DataBindingPropertyAccessor#forReadWriteAccess()
+	 * @see #isAssignmentEnabled()
+	 * @see Builder#withAssignmentDisabled()
 	 */
 	public static Builder forPropertyAccessors(PropertyAccessor... accessors) {
 		for (PropertyAccessor accessor : accessors) {
@@ -276,18 +304,28 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 	/**
 	 * Create a {@code SimpleEvaluationContext} for read-only access to
 	 * public properties via {@link DataBindingPropertyAccessor}.
+	 * <p>Assignment is disabled within expressions evaluated by the context created via
+	 * this factory method.
 	 * @see DataBindingPropertyAccessor#forReadOnlyAccess()
 	 * @see #forPropertyAccessors
+	 * @see #isAssignmentEnabled()
+	 * @see Builder#withAssignmentDisabled()
 	 */
 	public static Builder forReadOnlyDataBinding() {
-		return new Builder(DataBindingPropertyAccessor.forReadOnlyAccess());
+		return new Builder(DataBindingPropertyAccessor.forReadOnlyAccess()).withAssignmentDisabled();
 	}
 
 	/**
 	 * Create a {@code SimpleEvaluationContext} for read-write access to
 	 * public properties via {@link DataBindingPropertyAccessor}.
+	 * <p>By default, assignment is enabled within expressions evaluated by the context
+	 * created via this factory method. Assignment can be disabled via
+	 * {@link Builder#withAssignmentDisabled()}; however, it is preferable to use
+	 * {@link #forReadOnlyDataBinding()} if you desire read-only access.
 	 * @see DataBindingPropertyAccessor#forReadWriteAccess()
 	 * @see #forPropertyAccessors
+	 * @see #isAssignmentEnabled()
+	 * @see Builder#withAssignmentDisabled()
 	 */
 	public static Builder forReadWriteDataBinding() {
 		return new Builder(DataBindingPropertyAccessor.forReadWriteAccess());
@@ -299,18 +337,42 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 	 */
 	public static final class Builder {
 
-		private final List<PropertyAccessor> accessors;
+		private final List<PropertyAccessor> propertyAccessors;
+
+		private List<IndexAccessor> indexAccessors = Collections.emptyList();
 
 		private List<MethodResolver> resolvers = Collections.emptyList();
 
-		@Nullable
-		private TypeConverter typeConverter;
+		private @Nullable TypeConverter typeConverter;
 
-		@Nullable
-		private TypedValue rootObject;
+		private @Nullable TypedValue rootObject;
+
+		private boolean assignmentEnabled = true;
+
 
 		private Builder(PropertyAccessor... accessors) {
-			this.accessors = Arrays.asList(accessors);
+			this.propertyAccessors = Arrays.asList(accessors);
+		}
+
+
+		/**
+		 * Disable assignment within expressions evaluated by this evaluation context.
+		 * @since 5.3.38
+		 * @see SimpleEvaluationContext#isAssignmentEnabled()
+		 */
+		public Builder withAssignmentDisabled() {
+			this.assignmentEnabled = false;
+			return this;
+		}
+
+		/**
+		 * Register the specified {@link IndexAccessor} delegates.
+		 * @param indexAccessors the index accessors to use
+		 * @since 6.2
+		 */
+		public Builder withIndexAccessors(IndexAccessor... indexAccessors) {
+			this.indexAccessors = Arrays.asList(indexAccessors);
+			return this;
 		}
 
 		/**
@@ -391,8 +453,10 @@ public final class SimpleEvaluationContext implements EvaluationContext {
 		}
 
 		public SimpleEvaluationContext build() {
-			return new SimpleEvaluationContext(this.accessors, this.resolvers, this.typeConverter, this.rootObject);
+			return new SimpleEvaluationContext(this.propertyAccessors, this.indexAccessors,
+					this.resolvers, this.typeConverter, this.rootObject, this.assignmentEnabled);
 		}
+
 	}
 
 }

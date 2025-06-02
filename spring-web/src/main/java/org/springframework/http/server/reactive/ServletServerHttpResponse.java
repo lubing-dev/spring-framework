@@ -17,7 +17,7 @@
 package org.springframework.http.server.reactive;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
 import jakarta.servlet.AsyncContext;
@@ -27,6 +27,7 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 
@@ -37,7 +38,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -45,6 +45,7 @@ import org.springframework.util.Assert;
  *
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
+ * @author Brian Clozel
  * @since 5.0
  */
 class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
@@ -53,13 +54,9 @@ class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
 
 	private final ServletOutputStream outputStream;
 
-	private final int bufferSize;
+	private volatile @Nullable ResponseBodyFlushProcessor bodyFlushProcessor;
 
-	@Nullable
-	private volatile ResponseBodyFlushProcessor bodyFlushProcessor;
-
-	@Nullable
-	private volatile ResponseBodyProcessor bodyProcessor;
+	private volatile @Nullable ResponseBodyProcessor bodyProcessor;
 
 	private volatile boolean flushOnNext;
 
@@ -69,23 +66,21 @@ class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
 
 
 	public ServletServerHttpResponse(HttpServletResponse response, AsyncContext asyncContext,
-			DataBufferFactory bufferFactory, int bufferSize, ServletServerHttpRequest request) throws IOException {
+			DataBufferFactory bufferFactory, ServletServerHttpRequest request) throws IOException {
 
-		this(new HttpHeaders(), response, asyncContext, bufferFactory, bufferSize, request);
+		this(new HttpHeaders(), response, asyncContext, bufferFactory, request);
 	}
 
 	public ServletServerHttpResponse(HttpHeaders headers, HttpServletResponse response, AsyncContext asyncContext,
-			DataBufferFactory bufferFactory, int bufferSize, ServletServerHttpRequest request) throws IOException {
+			DataBufferFactory bufferFactory, ServletServerHttpRequest request) throws IOException {
 
 		super(bufferFactory, headers);
 
 		Assert.notNull(response, "HttpServletResponse must not be null");
 		Assert.notNull(bufferFactory, "DataBufferFactory must not be null");
-		Assert.isTrue(bufferSize > 0, "Buffer size must be greater than 0");
 
 		this.response = response;
 		this.outputStream = response.getOutputStream();
-		this.bufferSize = bufferSize;
 		this.request = request;
 
 		this.asyncListener = new ResponseAsyncListener();
@@ -105,13 +100,6 @@ class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
 	public HttpStatusCode getStatusCode() {
 		HttpStatusCode status = super.getStatusCode();
 		return (status != null ? status : HttpStatusCode.valueOf(this.response.getStatus()));
-	}
-
-	@Override
-	@Deprecated
-	public Integer getRawStatusCode() {
-		Integer status = super.getRawStatusCode();
-		return (status != null ? status : this.response.getStatus());
 	}
 
 	@Override
@@ -181,6 +169,9 @@ class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
 				}
 				cookie.setSecure(httpCookie.isSecure());
 				cookie.setHttpOnly(httpCookie.isHttpOnly());
+				if (httpCookie.isPartitioned()) {
+					cookie.setAttribute("Partitioned", "");
+				}
 				this.response.addCookie(cookie);
 			}
 		}
@@ -218,15 +209,15 @@ class ServletServerHttpResponse extends AbstractListenerServerHttpResponse {
 	 */
 	protected int writeToOutputStream(DataBuffer dataBuffer) throws IOException {
 		ServletOutputStream outputStream = this.outputStream;
-		InputStream input = dataBuffer.asInputStream();
-		int bytesWritten = 0;
-		byte[] buffer = new byte[this.bufferSize];
-		int bytesRead;
-		while (outputStream.isReady() && (bytesRead = input.read(buffer)) != -1) {
-			outputStream.write(buffer, 0, bytesRead);
-			bytesWritten += bytesRead;
+		int len = 0;
+		try (DataBuffer.ByteBufferIterator iterator = dataBuffer.readableByteBuffers()) {
+			while (iterator.hasNext() && outputStream.isReady()) {
+				ByteBuffer byteBuffer = iterator.next();
+				len += byteBuffer.remaining();
+				outputStream.write(byteBuffer);
+			}
 		}
-		return bytesWritten;
+		return len;
 	}
 
 	private void flush() throws IOException {

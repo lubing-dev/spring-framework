@@ -35,7 +35,7 @@ import kotlin.reflect.KClass
  * Extension for [ServerRequest.bodyToMono] providing a `bodyToMono<Foo>()` variant
  * leveraging Kotlin reified type parameters. This extension is not subject to type
  * erasure and retains actual generic type arguments.
- * 
+ *
  * @author Sebastien Deleuze
  * @since 5.0
  */
@@ -172,7 +172,7 @@ fun ServerRequest.attributeOrNull(name: String): Any? = attributes()[name]
  */
 fun ServerRequest.queryParamOrNull(name: String): String? {
 	val queryParamValues = queryParams()[name]
-	return if (queryParamValues.isNullOrEmpty()) null else queryParamValues[0] ?: ""
+	return if (queryParamValues.isNullOrEmpty()) null else queryParamValues[0]
 }
 
 /**
@@ -192,3 +192,13 @@ fun ServerRequest.Headers.contentLengthOrNull(): Long? =
  */
 fun ServerRequest.Headers.contentTypeOrNull(): MediaType? =
 		contentType().orElse(null)
+
+/**
+ * Nullable variant of [ServerRequest.pathVariable].
+ *
+ * @author George Papadopoulos
+ * @since 6.2
+ */
+fun ServerRequest.pathVariableOrNull(name: String): String? {
+	return pathVariables()[name]
+}

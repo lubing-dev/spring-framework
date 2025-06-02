@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.DirectFieldAccessor;
 import org.springframework.beans.testfixture.beans.TestBean;
@@ -34,8 +37,7 @@ import org.springframework.format.FormatterRegistry;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-import org.springframework.lang.Nullable;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.scheduling.concurrent.ConcurrentTaskExecutor;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.AntPathMatcher;
@@ -75,20 +77,16 @@ import org.springframework.web.servlet.mvc.annotation.ResponseStatusExceptionRes
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 import org.springframework.web.servlet.resource.ResourceUrlProviderExposingInterceptor;
 import org.springframework.web.servlet.view.ContentNegotiatingViewResolver;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 import org.springframework.web.servlet.view.ViewResolverComposite;
-import org.springframework.web.servlet.view.json.MappingJackson2JsonView;
+import org.springframework.web.servlet.view.json.JacksonJsonView;
 import org.springframework.web.testfixture.servlet.MockHttpServletRequest;
 import org.springframework.web.testfixture.servlet.MockServletContext;
 import org.springframework.web.util.UrlPathHelper;
 
-import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
-import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.InstanceOfAssertFactories.BOOLEAN;
 import static org.mockito.Mockito.mock;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_XML;
@@ -124,10 +122,11 @@ class WebMvcConfigurationSupportExtensionTests {
 		this.config.setServletContext(this.context.getServletContext());
 	}
 
+	@SuppressWarnings("removal")
 	@Test
 	void handlerMappings() throws Exception {
 		RequestMappingHandlerMapping rmHandlerMapping = this.config.requestMappingHandlerMapping(
-				this.config.mvcContentNegotiationManager(),
+				this.config.mvcContentNegotiationManager(), this.config.mvcApiVersionStrategy(),
 				this.config.mvcConversionService(), this.config.mvcResourceUrlProvider());
 		rmHandlerMapping.setApplicationContext(this.context);
 		rmHandlerMapping.afterPropertiesSet();
@@ -212,11 +211,11 @@ class WebMvcConfigurationSupportExtensionTests {
 		List<HttpMessageConverter<?>> converters = adapter.getMessageConverters();
 		assertThat(converters).hasSize(2);
 		assertThat(converters.get(0).getClass()).isEqualTo(StringHttpMessageConverter.class);
-		assertThat(converters.get(1).getClass()).isEqualTo(MappingJackson2HttpMessageConverter.class);
-		ObjectMapper objectMapper = ((MappingJackson2HttpMessageConverter) converters.get(1)).getObjectMapper();
-		assertThat(objectMapper.getDeserializationConfig().isEnabled(DEFAULT_VIEW_INCLUSION)).isFalse();
-		assertThat(objectMapper.getSerializationConfig().isEnabled(DEFAULT_VIEW_INCLUSION)).isFalse();
-		assertThat(objectMapper.getDeserializationConfig().isEnabled(FAIL_ON_UNKNOWN_PROPERTIES)).isFalse();
+		assertThat(converters.get(1).getClass()).isEqualTo(JacksonJsonHttpMessageConverter.class);
+		ObjectMapper objectMapper = ((JacksonJsonHttpMessageConverter) converters.get(1)).getObjectMapper();
+		assertThat(objectMapper.deserializationConfig().isEnabled(MapperFeature.DEFAULT_VIEW_INCLUSION)).isFalse();
+		assertThat(objectMapper.deserializationConfig().isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)).isFalse();
+		assertThat(objectMapper.serializationConfig().isEnabled(MapperFeature.DEFAULT_VIEW_INCLUSION)).isFalse();
 
 		DirectFieldAccessor fieldAccessor = new DirectFieldAccessor(adapter);
 
@@ -240,8 +239,6 @@ class WebMvcConfigurationSupportExtensionTests {
 		DeferredResultProcessingInterceptor[] deferredResultInterceptors =
 				(DeferredResultProcessingInterceptor[]) fieldAccessor.getPropertyValue("deferredResultInterceptors");
 		assertThat(deferredResultInterceptors).hasSize(1);
-
-		assertThat(fieldAccessor.getPropertyValue("ignoreDefaultModelOnRedirect")).asInstanceOf(BOOLEAN).isTrue();
 	}
 
 	@Test
@@ -264,14 +261,13 @@ class WebMvcConfigurationSupportExtensionTests {
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	public void contentNegotiation() throws Exception {
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/foo");
 		NativeWebRequest webRequest = new ServletWebRequest(request);
 
 		RequestMappingHandlerMapping mapping = this.config.requestMappingHandlerMapping(
-				this.config.mvcContentNegotiationManager(), this.config.mvcConversionService(),
-				this.config.mvcResourceUrlProvider());
+				this.config.mvcContentNegotiationManager(), this.config.mvcApiVersionStrategy(),
+				this.config.mvcConversionService(), this.config.mvcResourceUrlProvider());
 
 		request.setParameter("f", "json");
 		ContentNegotiationManager manager = mapping.getContentNegotiationManager();
@@ -287,11 +283,7 @@ class WebMvcConfigurationSupportExtensionTests {
 
 		request = new MockHttpServletRequest("GET", "/resources/foo.gif");
 		HandlerExecutionChain chain = handlerMapping.getHandler(request);
-
 		assertThat(chain).isNotNull();
-		ResourceHttpRequestHandler handler = (ResourceHttpRequestHandler) chain.getHandler();
-		assertThat(handler).isNotNull();
-		assertThat(handler.getContentNegotiationManager()).isSameAs(manager);
 	}
 
 	@Test
@@ -321,7 +313,7 @@ class WebMvcConfigurationSupportExtensionTests {
 		List<View> defaultViews = (List<View>) accessor.getPropertyValue("defaultViews");
 		assertThat(defaultViews).isNotNull();
 		assertThat(defaultViews).hasSize(1);
-		assertThat(defaultViews.get(0).getClass()).isEqualTo(MappingJackson2JsonView.class);
+		assertThat(defaultViews.get(0).getClass()).isEqualTo(JacksonJsonView.class);
 
 		viewResolvers = (List<ViewResolver>) accessor.getPropertyValue("viewResolvers");
 		assertThat(viewResolvers).isNotNull();
@@ -355,7 +347,7 @@ class WebMvcConfigurationSupportExtensionTests {
 	 * plus WebMvcConfigurer can switch to extending WebMvcConfigurationSupport directly for
 	 * more advanced configuration needs.
 	 */
-	private class TestWebMvcConfigurationSupport extends WebMvcConfigurationSupport implements WebMvcConfigurer {
+	private static class TestWebMvcConfigurationSupport extends WebMvcConfigurationSupport implements WebMvcConfigurer {
 
 		@Override
 		public void addFormatters(FormatterRegistry registry) {
@@ -364,7 +356,7 @@ class WebMvcConfigurationSupportExtensionTests {
 
 		@Override
 		public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
-			converters.add(new MappingJackson2HttpMessageConverter());
+			converters.add(new JacksonJsonHttpMessageConverter());
 		}
 
 		@Override
@@ -390,6 +382,11 @@ class WebMvcConfigurationSupportExtensionTests {
 		@Override
 		public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
 			configurer.favorParameter(true).parameterName("f");
+		}
+
+		@Override
+		public void configureApiVersioning(ApiVersionConfigurer configurer) {
+			configurer.useRequestHeader("X-API-Version");
 		}
 
 		@Override
@@ -420,6 +417,7 @@ class WebMvcConfigurationSupportExtensionTests {
 			exceptionResolvers.add(0, new ResponseStatusExceptionResolver());
 		}
 
+		@SuppressWarnings("removal")
 		@Override
 		public void configurePathMatch(PathMatchConfigurer configurer) {
 			configurer.setPathMatcher(new TestPathMatcher());
@@ -451,13 +449,13 @@ class WebMvcConfigurationSupportExtensionTests {
 
 		@Override
 		public void configureViewResolvers(ViewResolverRegistry registry) {
-			registry.enableContentNegotiation(new MappingJackson2JsonView());
+			registry.enableContentNegotiation(new JacksonJsonView());
 			registry.jsp("/", ".jsp");
 		}
 
 		@Override
 		public void addResourceHandlers(ResourceHandlerRegistry registry) {
-			registry.addResourceHandler("/resources/**").addResourceLocations("src/test/java");
+			registry.addResourceHandler("/resources/**").addResourceLocations("src/test/java/");
 		}
 
 		@Override

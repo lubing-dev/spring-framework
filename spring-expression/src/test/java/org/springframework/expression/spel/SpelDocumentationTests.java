@@ -21,21 +21,28 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import example.Color;
+import example.FruitMap;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.IndexAccessor;
 import org.springframework.expression.Operation;
 import org.springframework.expression.OperatorOverloader;
 import org.springframework.expression.common.TemplateParserContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.ReflectiveIndexAccessor;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.expression.spel.testresources.Inventor;
@@ -252,6 +259,24 @@ class SpelDocumentationTests extends AbstractExpressionTests {
 			String name = parser.parseExpression("#root['name']")
 					.getValue(context, tesla, String.class);
 			assertThat(name).isEqualTo("Nikola Tesla");
+		}
+
+		@Test
+		void indexingIntoCustomStructure() {
+			// Create a ReflectiveIndexAccessor for FruitMap
+			IndexAccessor fruitMapAccessor = new ReflectiveIndexAccessor(
+					FruitMap.class, Color.class, "getFruit", "setFruit");
+
+			// Register the IndexAccessor for FruitMap
+			context.addIndexAccessor(fruitMapAccessor);
+
+			// Register the fruitMap variable
+			context.setVariable("fruitMap", new FruitMap());
+
+			// evaluates to "cherry"
+			String fruit = parser.parseExpression("#fruitMap[T(example.Color).RED]")
+					.getValue(context, String.class);
+			assertThat(fruit).isEqualTo("cherry");
 		}
 
 	}
@@ -636,12 +661,66 @@ class SpelDocumentationTests extends AbstractExpressionTests {
 			MethodHandle methodHandle = MethodHandles.lookup().findVirtual(String.class, "formatted",
 				MethodType.methodType(String.class, Object[].class))
 					.bindTo(template)
-					.bindTo(varargs); // here we have to provide arguments in a single array binding
+					// Here we have to provide the arguments in a single array binding:
+					.bindTo(varargs);
 			context.registerFunction("message", methodHandle);
 
 			String message = parser.parseExpression("#message()").getValue(context, String.class);
 			assertThat(message).isEqualTo("This is a prerecorded message with 3 words: <Oh Hello World!>");
 		}
+	}
+
+	@Nested
+	class Varargs {
+
+		@Test
+		void varargsMethodInvocationWithIndividualArguments() {
+			// evaluates to "blue is color #1"
+			String expression = "'%s is color #%d'.formatted('blue', 1)";
+			String message = parser.parseExpression(expression)
+					.getValue(String.class);
+			assertThat(message).isEqualTo("blue is color #1");
+		}
+
+		@Test
+		void varargsMethodInvocationWithArgumentsAsObjectArray() {
+			// evaluates to "blue is color #1"
+			String expression = "'%s is color #%d'.formatted(new Object[] {'blue', 1})";
+			String message = parser.parseExpression(expression)
+					.getValue(String.class);
+			assertThat(message).isEqualTo("blue is color #1");
+		}
+
+		@Test
+		void varargsMethodInvocationWithArgumentsAsInlineList() {
+			// evaluates to "blue is color #1"
+			String expression = "'%s is color #%d'.formatted({'blue', 1})";
+			String message = parser.parseExpression(expression).getValue(String.class);
+			assertThat(message).isEqualTo("blue is color #1");
+		}
+
+		@Test
+		void varargsMethodInvocationWithTypeConversion() {
+			Method reverseStringsMethod = ReflectionUtils.findMethod(StringUtils.class, "reverseStrings", String[].class);
+			SimpleEvaluationContext evaluationContext = SimpleEvaluationContext.forReadOnlyDataBinding().build();
+			evaluationContext.setVariable("reverseStrings", reverseStringsMethod);
+
+			// String reverseStrings(String... strings)
+			// evaluates to "3.0, 2.0, 1.0, SpEL"
+			String expression = "#reverseStrings('SpEL', 1, 10F / 5, 3.0000)";
+			String message = parser.parseExpression(expression)
+					.getValue(evaluationContext, String.class);
+			assertThat(message).isEqualTo("3.0, 2.0, 1, SpEL");
+		}
+
+		@Test
+		void varargsMethodInvocationWithArgumentsAsStringArray() {
+			// evaluates to "blue is color #1"
+			String expression = "'%s is color #%s'.formatted(new String[] {'blue', 1})";
+			String message = parser.parseExpression(expression).getValue(String.class);
+			assertThat(message).isEqualTo("blue is color #1");
+		}
+
 	}
 
 	@Nested
@@ -658,8 +737,8 @@ class SpelDocumentationTests extends AbstractExpressionTests {
 			parser.parseExpression("Name").setValue(societyContext, "IEEE");
 			societyContext.setVariable("queryName", "Nikola Tesla");
 
-			String expression = "isMember(#queryName) ? #queryName + ' is a member of the ' "
-					+ "+ Name + ' Society' : #queryName + ' is not a member of the ' + Name + ' Society'";
+			String expression = "isMember(#queryName) ? #queryName + ' is a member of the ' " +
+					"+ Name + ' Society' : #queryName + ' is not a member of the ' + Name + ' Society'";
 
 			String queryResultString = parser.parseExpression(expression).getValue(societyContext, String.class);
 			assertThat(queryResultString).isEqualTo("Nikola Tesla is a member of the IEEE Society");
@@ -686,6 +765,24 @@ class SpelDocumentationTests extends AbstractExpressionTests {
 			city = parser.parseExpression("placeOfBirth?.city") // <2>
 					.getValue(context, tesla, String.class);
 			assertThat(city).isNull();
+		}
+
+		@Test
+		void nullSafeIndexing() {
+			IEEE society = new IEEE();
+			EvaluationContext context = new StandardEvaluationContext(society);
+
+			// evaluates to Inventor("Nikola Tesla")
+			Inventor inventor = parser.parseExpression("members?.[0]") // <1>
+					.getValue(context, Inventor.class);
+			assertThat(inventor).extracting(Inventor::getName).isEqualTo("Nikola Tesla");
+
+			society.members = null;
+
+			// evaluates to null - does not throw an Exception
+			inventor = parser.parseExpression("members?.[0]") // <2>
+					.getValue(context, Inventor.class);
+			assertThat(inventor).isNull();
 		}
 
 		@Test
@@ -864,6 +961,12 @@ class SpelDocumentationTests extends AbstractExpressionTests {
 
 		public static String reverseString(String input) {
 			return new StringBuilder(input).reverse().toString();
+		}
+
+		public static String reverseStrings(String... strings) {
+			List<String> list = Arrays.asList(strings);
+			Collections.reverse(list);
+			return list.stream().collect(Collectors.joining(", "));
 		}
 	}
 

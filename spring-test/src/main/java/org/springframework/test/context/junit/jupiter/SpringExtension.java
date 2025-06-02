@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,7 +51,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.annotation.MergedAnnotations.SearchStrategy;
 import org.springframework.core.annotation.RepeatableContainers;
-import org.springframework.lang.Nullable;
 import org.springframework.test.context.MethodInvoker;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.TestContextAnnotationUtils;
@@ -66,7 +65,7 @@ import org.springframework.util.ReflectionUtils.MethodFilter;
 
 /**
  * {@code SpringExtension} integrates the <em>Spring TestContext Framework</em>
- * into JUnit 5's <em>Jupiter</em> programming model.
+ * into the JUnit Jupiter testing framework.
  *
  * <p>To use this extension, simply annotate a JUnit Jupiter based test class with
  * {@code @ExtendWith(SpringExtension.class)}, {@code @SpringJUnitConfig}, or
@@ -118,9 +117,7 @@ public class SpringExtension implements BeforeAllCallback, AfterAllCallback, Tes
 			List.of(BeforeAll.class, AfterAll.class, BeforeEach.class, AfterEach.class, Testable.class);
 
 	private static final MethodFilter autowiredTestOrLifecycleMethodFilter =
-			ReflectionUtils.USER_DECLARED_METHODS
-					.and(method -> !Modifier.isPrivate(method.getModifiers()))
-					.and(SpringExtension::isAutowiredTestOrLifecycleMethod);
+			ReflectionUtils.USER_DECLARED_METHODS.and(SpringExtension::isAutowiredTestOrLifecycleMethod);
 
 
 	/**
@@ -150,9 +147,8 @@ public class SpringExtension implements BeforeAllCallback, AfterAllCallback, Tes
 
 	/**
 	 * Delegates to {@link TestContextManager#prepareTestInstance}.
-	 * <p>As of Spring Framework 5.3.2, this method also validates that test
-	 * methods and test lifecycle methods are not annotated with
-	 * {@link Autowired @Autowired}.
+	 * <p>This method also validates that test methods and test lifecycle methods
+	 * are not annotated with {@link Autowired @Autowired}.
 	 */
 	@Override
 	public void postProcessTestInstance(Object testInstance, ExtensionContext context) throws Exception {
@@ -333,8 +329,7 @@ public class SpringExtension implements BeforeAllCallback, AfterAllCallback, Tes
 	 * @see ParameterResolutionDelegate#resolveDependency
 	 */
 	@Override
-	@Nullable
-	public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
+	public @Nullable Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
 		Parameter parameter = parameterContext.getParameter();
 		int index = parameterContext.getIndex();
 		Class<?> testClass = extensionContext.getRequiredTestClass();
@@ -377,6 +372,7 @@ public class SpringExtension implements BeforeAllCallback, AfterAllCallback, Tes
 	 * the supplied {@link TestContextManager}.
 	 * @since 6.1
 	 */
+	@SuppressWarnings("NullAway") // org.junit.jupiter.api.extension.ExecutableInvoker is not null marked
 	private static void registerMethodInvoker(TestContextManager testContextManager, ExtensionContext context) {
 		testContextManager.getTestContext().setMethodInvoker(context.getExecutableInvoker()::invoke);
 	}
